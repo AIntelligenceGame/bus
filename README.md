@@ -88,3 +88,4 @@ api 日志统一（包括超时处理，跨域允许;使用API，则引用格式
 
 2)Clickhouse
 请参考 example/clickhouse
+add...
