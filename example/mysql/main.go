@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/openark/golib/sqlutils"
-	"github.com/org-lib/bus/config"
-	"github.com/org-lib/bus/db/mysql"
-	"github.com/org-lib/bus/logger"
-	"go.uber.org/zap"
 	"strings"
+
+	"github.com/AIntelligenceGame/bus/config"
+	"github.com/AIntelligenceGame/bus/db/mysql"
+	"github.com/AIntelligenceGame/bus/logger"
+	"github.com/openark/golib/sqlutils"
+	"go.uber.org/zap"
 )
 
 func main() {

@@ -2,9 +2,10 @@ package handler
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/org-lib/bus/logger"
 	"net/http"
+
+	"github.com/AIntelligenceGame/bus/logger"
+	"github.com/gin-gonic/gin"
 )
 
 func HelloWorldPost(ctx *gin.Context) {

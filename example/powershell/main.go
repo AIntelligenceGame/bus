@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"github.com/org-lib/bus/xshell"
+
+	"github.com/AIntelligenceGame/bus/xshell"
 )
 
 func main() {

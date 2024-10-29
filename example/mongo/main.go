@@ -3,16 +3,17 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/org-lib/bus/config"
-	"github.com/org-lib/bus/db/mongodb"
-	"github.com/org-lib/bus/logger"
+	"log"
+	"net/url"
+	"reflect"
+
+	"github.com/AIntelligenceGame/bus/config"
+	"github.com/AIntelligenceGame/bus/db/mongodb"
+	"github.com/AIntelligenceGame/bus/logger"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
-	"log"
-	"net/url"
-	"reflect"
 )
 
 func main() {

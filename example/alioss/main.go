@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
+	"os"
+
+	ali_oss "github.com/AIntelligenceGame/bus/aliyun/ali-oss"
+	"github.com/AIntelligenceGame/bus/config"
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
-	ali_oss "github.com/org-lib/bus/aliyun/ali-oss"
-	"github.com/org-lib/bus/config"
-	"os"
 )
 
 var (

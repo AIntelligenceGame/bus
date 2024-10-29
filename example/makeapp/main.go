@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/org-lib/bus/example/makeapp/app"
-	"github.com/org-lib/bus/logger"
-	"github.com/org-lib/bus/msi"
+
+	"github.com/AIntelligenceGame/bus/example/makeapp/app"
+	"github.com/AIntelligenceGame/bus/logger"
+	"github.com/AIntelligenceGame/bus/msi"
 	"go.uber.org/zap"
 )
 

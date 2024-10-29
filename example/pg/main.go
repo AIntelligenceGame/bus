@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/openark/golib/sqlutils"
-	"github.com/org-lib/bus/config"
-	"github.com/org-lib/bus/db/postgresql"
-	"github.com/org-lib/bus/logger"
-	"go.uber.org/zap"
 	"time"
+
+	"github.com/AIntelligenceGame/bus/config"
+	"github.com/AIntelligenceGame/bus/db/postgresql"
+	"github.com/AIntelligenceGame/bus/logger"
+	"github.com/openark/golib/sqlutils"
+	"go.uber.org/zap"
 )
 
 //  关于Gorm执行原生SQL

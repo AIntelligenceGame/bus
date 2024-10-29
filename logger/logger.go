@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AIntelligenceGame/bus/config"
 	"github.com/gin-gonic/gin"
-	"github.com/org-lib/bus/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"

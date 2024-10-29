@@ -1,9 +1,10 @@
 package handler
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/org-lib/bus/config"
 	"net/http"
+
+	"github.com/AIntelligenceGame/bus/config"
+	"github.com/gin-gonic/gin"
 )
 
 func AddPool(ctx *gin.Context) {

@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
+	"time"
+
+	"github.com/AIntelligenceGame/bus/config"
 	"github.com/go-mysql-org/go-mysql/canal"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/go-mysql-org/go-mysql/replication"
-	"github.com/org-lib/bus/config"
-	"time"
 )
 
 type MyEventHandler struct {
@@ -25,7 +26,7 @@ type C_Sharp_Arg struct {
 	TDatabase string   `toml:"tdatabase"`
 }
 
-//监听数据记录
+// 监听数据记录
 func (h *MyEventHandler) OnRow(ev *canal.RowsEvent) error {
 	//record := fmt.Sprintf("%s %v %v %v %s\n",e.Action,e.Rows,e.Header,e.Table,e.String())
 	if ev.Table.Name != config.Config.V.GetString("mysql.tables") {
@@ -45,7 +46,7 @@ func (h *MyEventHandler) OnRow(ev *canal.RowsEvent) error {
 	return nil
 }
 
-//创建、更改、重命名或删除表时触发，通常会需要清除与表相关的数据，如缓存。It will be called before OnDDL.
+// 创建、更改、重命名或删除表时触发，通常会需要清除与表相关的数据，如缓存。It will be called before OnDDL.
 func (h *MyEventHandler) OnTableChanged(schema string, table string) error {
 	//库，表
 	record := fmt.Sprintf("%s %s \n", schema, table)
@@ -53,7 +54,7 @@ func (h *MyEventHandler) OnTableChanged(schema string, table string) error {
 	return nil
 }
 
-//监听binlog日志的变化文件与记录的位置
+// 监听binlog日志的变化文件与记录的位置
 func (h *MyEventHandler) OnPosSynced(pos mysql.Position, set mysql.GTIDSet, force bool) error {
 	//源码：当force为true，立即同步位置
 	record := fmt.Sprintf("%v %v \n", pos.Name, pos.Pos)
@@ -61,7 +62,7 @@ func (h *MyEventHandler) OnPosSynced(pos mysql.Position, set mysql.GTIDSet, forc
 	return nil
 }
 
-//当产生新的binlog日志后触发(在达到内存的使用限制后（默认为 1GB），会开启另一个文件，每个新文件的名称后都会有一个增量。)
+// 当产生新的binlog日志后触发(在达到内存的使用限制后（默认为 1GB），会开启另一个文件，每个新文件的名称后都会有一个增量。)
 func (h *MyEventHandler) OnRotate(r *replication.RotateEvent) error {
 	//record := fmt.Sprintf("On Rotate: %v \n",&mysql.Position{Name: string(r.NextLogName), Pos: uint32(r.Position)})
 	//binlog的记录位置，新binlog的文件名

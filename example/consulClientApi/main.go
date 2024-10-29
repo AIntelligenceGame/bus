@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"github.com/org-lib/bus/consul"
+
+	"github.com/AIntelligenceGame/bus/consul"
 )
 
 func main() {

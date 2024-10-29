@@ -5,7 +5,8 @@ import (
 	"net"
 
 	"context"
-	pb "github.com/org-lib/bus/proto" // 引入编译生成的包
+
+	pb "github.com/AIntelligenceGame/bus/proto" // 引入编译生成的包
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 )

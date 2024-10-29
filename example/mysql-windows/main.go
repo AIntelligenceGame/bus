@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/org-lib/bus/config"
-	"github.com/org-lib/bus/db/mysql"
-	"github.com/org-lib/bus/logger"
+
+	"github.com/AIntelligenceGame/bus/config"
+	"github.com/AIntelligenceGame/bus/db/mysql"
+	"github.com/AIntelligenceGame/bus/logger"
 	"go.uber.org/zap"
 )
 

@@ -2,17 +2,18 @@ package main
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/org-lib/bus/config"
-	"github.com/org-lib/bus/cors"
-	"github.com/org-lib/bus/example/concurrency/handler"
-	"github.com/org-lib/bus/logger"
-	"github.com/org-lib/bus/pool"
-	"github.com/vearne/gin-timeout"
-	"go.uber.org/zap"
 	"net/http"
 	"runtime"
 	"time"
+
+	"github.com/AIntelligenceGame/bus/config"
+	"github.com/AIntelligenceGame/bus/cors"
+	"github.com/AIntelligenceGame/bus/example/concurrency/handler"
+	"github.com/AIntelligenceGame/bus/logger"
+	"github.com/AIntelligenceGame/bus/pool"
+	"github.com/gin-gonic/gin"
+	timeout "github.com/vearne/gin-timeout"
+	"go.uber.org/zap"
 )
 
 var (

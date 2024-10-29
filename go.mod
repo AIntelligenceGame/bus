@@ -1,4 +1,4 @@
-module github.com/org-lib/bus
+module github.com/AIntelligenceGame/bus
 
 go 1.20
 

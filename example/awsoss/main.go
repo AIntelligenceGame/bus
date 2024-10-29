@@ -3,13 +3,14 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
+	"os"
+	"time"
+
+	aws_s3 "github.com/AIntelligenceGame/bus/aws/aws-s3"
+	"github.com/AIntelligenceGame/bus/config"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/service/s3"
-	aws_s3 "github.com/org-lib/bus/aws/aws-s3"
-	"github.com/org-lib/bus/config"
-	"os"
-	"time"
 )
 
 var (

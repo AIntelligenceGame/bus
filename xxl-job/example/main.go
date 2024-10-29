@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/org-lib/bus/xxl-job"
-	"github.com/xxl-job/xxl-job-executor-go/example/task"
 	"log"
 	"time"
+
+	"github.com/AIntelligenceGame/bus/xxl-job"
+	"github.com/xxl-job/xxl-job-executor-go/example/task"
 )
 
 func main() {

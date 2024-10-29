@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
+
+	"github.com/AIntelligenceGame/bus/config"
+	"github.com/AIntelligenceGame/bus/db/clickhouse"
+	"github.com/AIntelligenceGame/bus/logger"
 	"github.com/openark/golib/sqlutils"
-	"github.com/org-lib/bus/config"
-	"github.com/org-lib/bus/db/clickhouse"
-	"github.com/org-lib/bus/logger"
 	"go.uber.org/zap"
 )
 

@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	ShortUrlGenerator "github.com/org-lib/bus/short-url"
+
+	ShortUrlGenerator "github.com/AIntelligenceGame/bus/short-url"
 )
 
 func main() {

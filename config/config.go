@@ -4,10 +4,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/org-lib/bus/pool"
-	"github.com/spf13/viper"
 	"os"
 	"path/filepath"
+
+	"github.com/AIntelligenceGame/bus/pool"
+	"github.com/spf13/viper"
 )
 
 // ViperConfig 定义一个viper的struct

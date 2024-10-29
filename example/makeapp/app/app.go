@@ -2,14 +2,15 @@ package app
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/org-lib/bus/config"
-	"github.com/org-lib/bus/cors"
-	"github.com/org-lib/bus/example/makeapp/handler"
-	"github.com/org-lib/bus/logger"
-	"github.com/org-lib/bus/pool"
-	"go.uber.org/zap"
 	"runtime"
+
+	"github.com/AIntelligenceGame/bus/config"
+	"github.com/AIntelligenceGame/bus/cors"
+	"github.com/AIntelligenceGame/bus/example/makeapp/handler"
+	"github.com/AIntelligenceGame/bus/logger"
+	"github.com/AIntelligenceGame/bus/pool"
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 var (

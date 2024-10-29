@@ -8,7 +8,7 @@ package proto;
 
 // 指定 golang 包名
 
-option go_package = "github.com/org-lib/bus/proto;hello";
+option go_package = "github.com/AIntelligenceGame/bus/proto;hello";
 
 // 定义hello服务
 

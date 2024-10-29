@@ -2,12 +2,13 @@ package handler
 
 import (
 	"fmt"
+
+	aws_s3 "github.com/AIntelligenceGame/bus/aws/aws-s3"
+	"github.com/AIntelligenceGame/bus/config"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
-	aws_s3 "github.com/org-lib/bus/aws/aws-s3"
-	"github.com/org-lib/bus/config"
 )
 
 var (

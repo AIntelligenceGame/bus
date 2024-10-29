@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	pb "github.com/org-lib/bus/proto" // 引入proto包
+
+	pb "github.com/AIntelligenceGame/bus/proto" // 引入proto包
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 )

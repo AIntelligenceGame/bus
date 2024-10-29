@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/org-lib/bus/msi"
 	"os"
+
+	"github.com/AIntelligenceGame/bus/msi"
 )
 
 var (

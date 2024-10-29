@@ -2,14 +2,15 @@ package handler
 
 import (
 	"fmt"
+	"net/http"
+
+	"github.com/AIntelligenceGame/bus/config"
+	"github.com/AIntelligenceGame/bus/logger"
+	"github.com/AIntelligenceGame/bus/msi"
+	"github.com/AIntelligenceGame/bus/xshell"
 	"github.com/axgle/mahonia"
 	"github.com/gin-gonic/gin"
-	"github.com/org-lib/bus/config"
-	"github.com/org-lib/bus/logger"
-	"github.com/org-lib/bus/msi"
-	"github.com/org-lib/bus/xshell"
 	"go.uber.org/zap"
-	"net/http"
 )
 
 func HelloWorld(ctx *gin.Context) {

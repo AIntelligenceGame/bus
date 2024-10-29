@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/antlr/antlr4/runtime/Go/antlr"
-	"github.com/org-lib/bus/parser"
 	"strings"
+
+	"github.com/AIntelligenceGame/bus/parser"
+	"github.com/antlr/antlr4/runtime/Go/antlr"
 )
 
 type Ml struct {

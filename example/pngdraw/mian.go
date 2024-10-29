@@ -1,6 +1,6 @@
 package main
 
-import "github.com/org-lib/bus/draw"
+import "github.com/AIntelligenceGame/bus/draw"
 
 func main() {
 	var xyx *draw.Poster

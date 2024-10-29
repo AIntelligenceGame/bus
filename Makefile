@@ -12,3 +12,9 @@ install:
 gomobile:
 
 build-ios:
+
+git:
+	git pull
+	git add .
+	git commit -m 'migrate'
+	git push

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/org-lib/bus/logger"
+	"github.com/AIntelligenceGame/bus/logger"
 	"go.uber.org/zap"
 )
 
