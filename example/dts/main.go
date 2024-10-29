@@ -71,6 +71,14 @@ func (h *MyEventHandler) OnRotate(header *replication.EventHeader, r *replicatio
 	return nil
 
 }
+func (h *MyEventHandler) OnRowsQueryEvent(r *replication.RowsQueryEvent) error {
+	//record := fmt.Sprintf("On Rotate: %v \n",&mysql.Position{Name: string(r.NextLogName), Pos: uint32(r.Position)})
+	//binlog的记录位置，新binlog的文件名
+	record := fmt.Sprintf("On Rotate %v \n", r.Query)
+	fmt.Println(record)
+	return nil
+
+}
 
 // create alter drop truncate(删除当前表再新建一个一模一样的表结构)
 func (h *MyEventHandler) OnDDL(header *replication.EventHeader, nextPos mysql.Position, queryEvent *replication.QueryEvent) error {
@@ -94,7 +102,7 @@ func (h *MyEventHandler) OnXID(header *replication.EventHeader, pos mysql.Positi
 	return nil
 }
 
-func (h *MyEventHandler) OnGTID(header *replication.EventHeader, set mysql.GTIDSet) error {
+func (h *MyEventHandler) OnGTID(header *replication.EventHeader, set mysql.BinlogGTIDEvent) error {
 	fmt.Println("OnGTID:", set)
 	return nil
 }
