@@ -47,7 +47,7 @@ func (h *MyEventHandler) OnRow(ev *canal.RowsEvent) error {
 }
 
 // 创建、更改、重命名或删除表时触发，通常会需要清除与表相关的数据，如缓存。It will be called before OnDDL.
-func (h *MyEventHandler) OnTableChanged(schema string, table string) error {
+func (h *MyEventHandler) OnTableChanged(header *replication.EventHeader, schema string, table string) error {
 	//库，表
 	record := fmt.Sprintf("%s %s \n", schema, table)
 	fmt.Println(record)
@@ -55,7 +55,7 @@ func (h *MyEventHandler) OnTableChanged(schema string, table string) error {
 }
 
 // 监听binlog日志的变化文件与记录的位置
-func (h *MyEventHandler) OnPosSynced(pos mysql.Position, set mysql.GTIDSet, force bool) error {
+func (h *MyEventHandler) OnPosSynced(header *replication.EventHeader, pos mysql.Position, set mysql.GTIDSet, force bool) error {
 	//源码：当force为true，立即同步位置
 	record := fmt.Sprintf("%v %v \n", pos.Name, pos.Pos)
 	fmt.Println("OnPosSynced", record)
@@ -63,7 +63,7 @@ func (h *MyEventHandler) OnPosSynced(pos mysql.Position, set mysql.GTIDSet, forc
 }
 
 // 当产生新的binlog日志后触发(在达到内存的使用限制后（默认为 1GB），会开启另一个文件，每个新文件的名称后都会有一个增量。)
-func (h *MyEventHandler) OnRotate(r *replication.RotateEvent) error {
+func (h *MyEventHandler) OnRotate(header *replication.EventHeader, r *replication.RotateEvent) error {
 	//record := fmt.Sprintf("On Rotate: %v \n",&mysql.Position{Name: string(r.NextLogName), Pos: uint32(r.Position)})
 	//binlog的记录位置，新binlog的文件名
 	record := fmt.Sprintf("On Rotate %v %v \n", r.Position, r.NextLogName)
@@ -73,7 +73,7 @@ func (h *MyEventHandler) OnRotate(r *replication.RotateEvent) error {
 }
 
 // create alter drop truncate(删除当前表再新建一个一模一样的表结构)
-func (h *MyEventHandler) OnDDL(nextPos mysql.Position, queryEvent *replication.QueryEvent) error {
+func (h *MyEventHandler) OnDDL(header *replication.EventHeader, nextPos mysql.Position, queryEvent *replication.QueryEvent) error {
 	//binlog日志的变化文件与记录的位置
 	record := fmt.Sprintf("%v %v\n", nextPos.Name, nextPos.Pos)
 	query_event := fmt.Sprintf("%v\n %v\n %v\n %v\n %v\n",
@@ -88,6 +88,15 @@ func (h *MyEventHandler) OnDDL(nextPos mysql.Position, queryEvent *replication.Q
 
 func (h *MyEventHandler) String() string {
 	return "MyEventHandler"
+}
+func (h *MyEventHandler) OnXID(header *replication.EventHeader, pos mysql.Position) error {
+	fmt.Println("OnXID:", pos)
+	return nil
+}
+
+func (h *MyEventHandler) OnGTID(header *replication.EventHeader, set mysql.GTIDSet) error {
+	fmt.Println("OnGTID:", set)
+	return nil
 }
 
 func DefaultExport(csa *C_Sharp_Arg) {

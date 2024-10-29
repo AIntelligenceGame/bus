@@ -34,7 +34,7 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 
 	//跨域
-	router.Use(cors.Cors())
+	router.Use(cors.ECors())
 
 	router.Use(timeout.Timeout(
 		timeout.WithTimeout(20*time.Second),

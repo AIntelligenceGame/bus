@@ -33,7 +33,7 @@ func init() {
 }
 func lists() {
 
-	client, err := ali_oss.NewSession(Info)
+	client, err := ali_oss.NewSession(*Info)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
@@ -57,7 +57,7 @@ func exitErrorf(msg string, args ...interface{}) {
 }
 
 func Upload() {
-	client, err := ali_oss.NewSession(Info)
+	client, err := ali_oss.NewSession(*Info)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
@@ -80,7 +80,7 @@ func DownLoadUrl() {
 	//	oss.ContentType("image/png"),
 	//}
 
-	client, err := ali_oss.NewSession(Info)
+	client, err := ali_oss.NewSession(*Info)
 	if err != nil {
 		fmt.Println(err.Error())
 	}

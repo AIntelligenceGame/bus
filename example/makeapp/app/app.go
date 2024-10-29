@@ -33,7 +33,7 @@ func Bus() {
 	gin.SetMode(gin.ReleaseMode)
 
 	//跨域
-	router.Use(cors.Cors())
+	router.Use(cors.ECors())
 
 	router.Use(logger.GinLogger(), logger.GinRecovery(true))
 
