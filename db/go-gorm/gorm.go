@@ -2,8 +2,10 @@ package go_gorm
 
 import (
 	"fmt"
+
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 //gorm.io/gorm 是gorm的官方
@@ -25,5 +27,7 @@ func Open(cnf Info) (*gorm.DB, error) {
 	}
 	conn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=%v&parseTime=True&loc=Local",
 		cnf.Username, cnf.Password, cnf.Host, cnf.Port, cnf.Database, cnf.Charset)
-	return gorm.Open(mysql.Open(conn), &gorm.Config{})
+	return gorm.Open(mysql.Open(conn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Info),
+	})
 }
