@@ -117,7 +117,7 @@ func NewLogger() *zap.Logger {
 	// 创建一个zap日志
 	logger := zap.New(core, caller, devel)
 
-	zap.ReplaceGlobals(logger)
+	// zap.ReplaceGlobals(logger)
 
 	return logger
 }
