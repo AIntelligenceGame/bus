@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/AIntelligenceGame/bus/example/makeapp/app"
-	"github.com/AIntelligenceGame/bus/logger"
 	"github.com/AIntelligenceGame/bus/msi"
 	"go.uber.org/zap"
 )
@@ -27,7 +26,7 @@ func E() {
 	defer func() {
 		if err := recover(); err != nil {
 			fmt.Println("*** 异常:", err)
-			logger.Log.Error("*** 异常:", zap.String("remote", fmt.Sprintf("%v", err)))
+			zap.L().Error("*** 异常:", zap.String("remote", fmt.Sprintf("%v", err)))
 		}
 	}()
 }

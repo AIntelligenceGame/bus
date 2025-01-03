@@ -22,6 +22,7 @@ var (
 )
 
 func main() {
+	_ = logger.InitLogger(logger.LoggerConfig{})
 	//并发能力控制
 
 	if MaxProces > 2 {
@@ -61,11 +62,11 @@ func main() {
 	//输出一个名为message的自定义内容值、{"message":"Start server"}，以及自定义key：value 的输出
 	//{"level":"INFO","timestamp":"2021-12-22 13:38:09:000","caller":"example/main.go:68","message":"Start server","listen":"0.0.0.0:80"}
 
-	logger.Log.Info("Start server", zap.String("listen", addr))
+	zap.L().Info("Start server", zap.String("listen", addr))
 	err := router.Run(fmt.Sprintf("%v", addr))
 	if err != nil {
-		logger.Log.Error("Start server", zap.String("error", err.Error()))
+		zap.L().Error("Start server", zap.String("error", err.Error()))
 	}
-	//logger.Log.Info("Start server success", zap.String("listen", addr))
+	//zap.L().Info("Start server success", zap.String("listen", addr))
 
 }

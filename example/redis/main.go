@@ -6,9 +6,11 @@ import (
 	"github.com/AIntelligenceGame/bus/config"
 	"github.com/AIntelligenceGame/bus/db/redis"
 	"github.com/AIntelligenceGame/bus/logger"
+	"go.uber.org/zap"
 )
 
 func main() {
+	_ = logger.InitLogger(logger.LoggerConfig{})
 	//定义 cfg 对象
 	var cfg redis.Info
 	cfg = redis.Info{
@@ -22,7 +24,7 @@ func main() {
 
 	pong, err := client.Ping().Result()
 	if err != nil {
-		logger.Log.Error(fmt.Sprintf("Redis connection fail:%v, pong:%v", err, pong))
+		zap.L().Error(fmt.Sprintf("Redis connection fail:%v, pong:%v", err, pong))
 	}
 
 	var redisInfo = make(map[string]map[string]interface{})
@@ -62,6 +64,6 @@ func main() {
 	redisInfo2, err = redis.Info2Map(client)
 
 	fmt.Println(redisInfo2["role"])
-	logger.Log.Info(fmt.Sprintf("Redis connection success!"))
+	zap.L().Info(fmt.Sprintf("Redis connection success!"))
 
 }

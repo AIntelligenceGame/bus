@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/AIntelligenceGame/bus/config"
-	"github.com/AIntelligenceGame/bus/logger"
 	"github.com/AIntelligenceGame/bus/msi"
 	"github.com/AIntelligenceGame/bus/xshell"
 	"github.com/axgle/mahonia"
@@ -87,7 +86,7 @@ func makeApp(v interface{}, res func(result int, reason string)) {
 			return
 		}
 		fmt.Println("make msi installer file done.....")
-		logger.Log.Info("Make MSI File", zap.String("MSI", "成功构建MSI！"))
+		zap.L().Info("Make MSI File", zap.String("MSI", "成功构建MSI！"))
 
 		//MSI2 参数信息不正确
 		//do msi2
@@ -104,7 +103,7 @@ func e() {
 	defer func() {
 		if err := recover(); err != nil {
 			fmt.Println("*** 异常:", err)
-			logger.Log.Error("*** 异常:", zap.String("remote", fmt.Sprintf("%v", err)))
+			zap.L().Error("*** 异常:", zap.String("remote", fmt.Sprintf("%v", err)))
 		}
 	}()
 }
@@ -126,10 +125,10 @@ func doMsi(m msi.Msi) (error, string) {
 
 		outStr = fmt.Sprintf("%v", stdout)
 		if err != nil {
-			logger.Log.Error("Making MSI File Error", zap.String("MSI stderr", stderr))
+			zap.L().Error("Making MSI File Error", zap.String("MSI stderr", stderr))
 			return err, ""
 		}
-		logger.Log.Info("Making MSI File ", zap.String("MSI stdout", stdout))
+		zap.L().Info("Making MSI File ", zap.String("MSI stdout", stdout))
 	}
 	return nil, outStr
 }

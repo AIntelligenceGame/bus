@@ -10,6 +10,7 @@ import (
 )
 
 func main() {
+	_ = logger.InitLogger(logger.LoggerConfig{})
 
 	//初始换数据库连接信息
 
@@ -32,7 +33,7 @@ func main() {
 	//获取数据库实例连接
 	db, err := mysql.Open(cfg)
 	if err != nil {
-		logger.Log.Error(fmt.Sprintf("获取数据库实例连接，失败：%v", err), zap.String("mysql", "3306"))
+		zap.L().Error(fmt.Sprintf("获取数据库实例连接，失败：%v", err), zap.String("mysql", "3306"))
 		panic(err)
 	}
 	defer db.Close()
@@ -42,7 +43,7 @@ func main() {
 	//windows
 	rows, err := db.Query("select name,help_topic_id,description from help_topic where name = ?", "HEX")
 	if err != nil {
-		logger.Log.Error(fmt.Sprintf("数据获取，失败：%v", err), zap.String("mysql", "3306"))
+		zap.L().Error(fmt.Sprintf("数据获取，失败：%v", err), zap.String("mysql", "3306"))
 		panic(err)
 	}
 
@@ -52,17 +53,17 @@ func main() {
 		var s3 string
 		err = rows.Scan(&s1, &s2, &s3)
 		if err != nil {
-			logger.Log.Error(fmt.Sprintf("数据库查询，失败：%v", err), zap.String("mysql", "运行失败!"))
+			zap.L().Error(fmt.Sprintf("数据库查询，失败：%v", err), zap.String("mysql", "运行失败!"))
 			panic(err)
 		}
-		logger.Log.Info("数据库返回信息：", zap.String("name", s1))
-		logger.Log.Info("数据库返回信息：", zap.Int("help_topic_id", s2))
-		logger.Log.Info("数据库返回信息：", zap.String("description", s3))
+		zap.L().Info("数据库返回信息：", zap.String("name", s1))
+		zap.L().Info("数据库返回信息：", zap.Int("help_topic_id", s2))
+		zap.L().Info("数据库返回信息：", zap.String("description", s3))
 	}
 	rows.Close()
 
 	//日志打印
-	//logger.Log.Info("server start", zap.String("mysql", "运行结束！"))
+	//zap.L().Info("server start", zap.String("mysql", "运行结束！"))
 
 	//其它操作方式不断迭代中...
 
@@ -75,6 +76,6 @@ func main() {
 	//if err != nil{
 	//	log.Fatalln(err)
 	//}
-	//logger.Log.Info("inserted rows：", zap.Int("rowCount", rowCount))
+	//zap.L().Info("inserted rows：", zap.Int("rowCount", rowCount))
 
 }

@@ -4,8 +4,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	_ "github.com/mailru/go-clickhouse"
 	"strings"
+
+	_ "github.com/mailru/go-clickhouse"
 )
 
 // Clickhouse 初始化连接信息对象

@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/AIntelligenceGame/bus/logger"
+	"go.uber.org/zap"
+
 	"github.com/gin-gonic/gin"
 )
 
 func HelloWorldPost(ctx *gin.Context) {
 	var tmpMsgsUser MsgsUser
 	if err := ctx.ShouldBindJSON(&tmpMsgsUser); err != nil {
-		logger.Log.Error(fmt.Sprintf("DB OpenAI ： 参数解析失败：%v", err.Error()))
+		zap.L().Error(fmt.Sprintf("DB OpenAI ： 参数解析失败：%v", err.Error()))
 		ctx.JSON(http.StatusOK, MyResponse{
 			Code: -1,
 			Msg:  fmt.Sprintf("DB OpenAI ： 参数解析失败：%v", err.Error()),

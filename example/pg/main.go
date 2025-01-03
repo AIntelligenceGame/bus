@@ -18,6 +18,7 @@ import (
 // *************** 注意要 defer rows.Close()
 
 func main() {
+	_ = logger.InitLogger(logger.LoggerConfig{})
 	//定义 cfg 对象
 	var cfg postgresql.Info
 
@@ -33,7 +34,7 @@ func main() {
 	//获取数据库实例连接
 	db, err := postgresql.Open(cfg)
 	if err != nil {
-		logger.Log.Error(fmt.Sprintf("获取数据库实例连接，失败：%v", err), zap.String("postgres", "5432"))
+		zap.L().Error(fmt.Sprintf("获取数据库实例连接，失败：%v", err), zap.String("postgres", "5432"))
 		panic(err)
 	}
 	var users []TStoreTemplateTask
@@ -45,7 +46,7 @@ func main() {
 
 	db2, err := postgresql.OpenPlus(cfg)
 	if err != nil {
-		logger.Log.Error(fmt.Sprintf("获取数据库实例连接，失败：%v", err), zap.String("postgres", "5432"))
+		zap.L().Error(fmt.Sprintf("获取数据库实例连接，失败：%v", err), zap.String("postgres", "5432"))
 		panic(err)
 	}
 	defer db2.Close()
@@ -57,13 +58,13 @@ func main() {
 	//（sqlutils mysql QueryRowsMap.arg 参数形式是?）
 
 	err = sqlutils.QueryRowsMap(db2, `select * from t_store_template_task where id = $1 limit 1`, func(m sqlutils.RowMap) error {
-		logger.Log.Info("数据库返回信息1：", zap.String("response_date", m.GetString("response_date")))
-		logger.Log.Info("数据库返回信息2：", zap.String("order_code", m.GetString("order_code")))
-		logger.Log.Info("数据库返回信息3：", zap.String("create_date", m.GetString("create_date")))
+		zap.L().Info("数据库返回信息1：", zap.String("response_date", m.GetString("response_date")))
+		zap.L().Info("数据库返回信息2：", zap.String("order_code", m.GetString("order_code")))
+		zap.L().Info("数据库返回信息3：", zap.String("create_date", m.GetString("create_date")))
 		return nil
 	}, 11)
 	if err != nil {
-		logger.Log.Error(fmt.Sprintf("数据库查询，失败：%v", err), zap.String("postgres2", "运行失败！"))
+		zap.L().Error(fmt.Sprintf("数据库查询，失败：%v", err), zap.String("postgres2", "运行失败！"))
 	}
 
 	/*

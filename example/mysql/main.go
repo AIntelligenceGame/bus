@@ -12,6 +12,7 @@ import (
 )
 
 func main() {
+	_ = logger.InitLogger(logger.LoggerConfig{})
 
 	//初始换数据库连接信息
 
@@ -33,7 +34,7 @@ func main() {
 	//获取数据库实例连接
 	db, err := mysql.Open(cfg)
 	if err != nil {
-		logger.Log.Error(fmt.Sprintf("获取数据库实例连接，失败：%v", err), zap.String("mysql", "3306"))
+		zap.L().Error(fmt.Sprintf("获取数据库实例连接，失败：%v", err), zap.String("mysql", "3306"))
 		panic(err)
 	}
 	defer db.Close()
@@ -41,23 +42,23 @@ func main() {
 	//unix/linux 可用 sqlutils
 	//sqlutils.QueryRowsMap 不支持在Windows 上运行，log 包异常
 	err = sqlutils.QueryRowsMap(db, `select * from sys_config where id = ?`, func(m sqlutils.RowMap) error {
-		logger.Log.Info("数据库返回信息：", zap.String("config_value", m.GetString("config_value")))
-		logger.Log.Info("数据库返回信息：", zap.String("description", m.GetString("description")))
-		logger.Log.Info("数据库返回信息：", zap.String("saas_tenant_code", m.GetString("saas_tenant_code")))
+		zap.L().Info("数据库返回信息：", zap.String("config_value", m.GetString("config_value")))
+		zap.L().Info("数据库返回信息：", zap.String("description", m.GetString("description")))
+		zap.L().Info("数据库返回信息：", zap.String("saas_tenant_code", m.GetString("saas_tenant_code")))
 		return nil
 	}, "1")
 	if err != nil {
-		logger.Log.Error(fmt.Sprintf("数据库查询，失败：%v", err), zap.String("mysql", "运行失败！"))
+		zap.L().Error(fmt.Sprintf("数据库查询，失败：%v", err), zap.String("mysql", "运行失败！"))
 	}
 
 	//show master status   ;  show slave status;
 	err = sqlutils.QueryRowsMap(db, `SHOW MASTER STATUS;`, func(m sqlutils.RowMap) error {
-		logger.Log.Info("数据库返回信息：", zap.String("File", m.GetString("File")))
-		logger.Log.Info("数据库返回信息：", zap.String("Position", m.GetString("Position")))
+		zap.L().Info("数据库返回信息：", zap.String("File", m.GetString("File")))
+		zap.L().Info("数据库返回信息：", zap.String("Position", m.GetString("Position")))
 		return nil
 	})
 	if err != nil {
-		logger.Log.Error(fmt.Sprintf("数据库查询，失败：%v", err), zap.String("mysql", "运行失败！"))
+		zap.L().Error(fmt.Sprintf("数据库查询，失败：%v", err), zap.String("mysql", "运行失败！"))
 	}
 
 	//日志打印
@@ -74,7 +75,7 @@ func main() {
 	tmp = tmp + ")values"
 	//insert 数据部分
 	tmpv := ""
-	logger.Log.Info(fmt.Sprintf("v-1=%v", len(tmpResults.Data)))
+	zap.L().Info(fmt.Sprintf("v-1=%v", len(tmpResults.Data)))
 	for _, datum := range tmpResults.Data {
 		tmpx := ""
 		for _, data := range datum {
@@ -86,10 +87,10 @@ func main() {
 				tmpx = tmpx + "," + "'" + data.String + "'"
 			}
 		}
-		logger.Log.Info(fmt.Sprintf("v0=(%v)", strings.TrimLeft(tmpx, ",")))
+		zap.L().Info(fmt.Sprintf("v0=(%v)", strings.TrimLeft(tmpx, ",")))
 		tmpv = tmpv + "," + "(" + strings.TrimLeft(tmpx, ",") + ")"
 	}
-	logger.Log.Info(fmt.Sprintf("v1=%v%v", tmp, strings.TrimLeft(tmpv, ",")))
+	zap.L().Info(fmt.Sprintf("v1=%v%v", tmp, strings.TrimLeft(tmpv, ",")))
 
 	//其它操作方式不断迭代中...
 

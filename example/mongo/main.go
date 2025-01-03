@@ -17,6 +17,7 @@ import (
 )
 
 func main() {
+	_ = logger.InitLogger(logger.LoggerConfig{})
 
 	//定义 cfg 对象
 	var cfg mongodb.Info
@@ -32,7 +33,7 @@ func main() {
 	//获取数据库实例连接
 	db, err := mongodb.Open(cfg)
 	if err != nil {
-		logger.Log.Error(fmt.Sprintf("获取数据库实例连接，失败：%v", err), zap.String("mongodb", config.Config.V.GetString("mongodb.port")))
+		zap.L().Error(fmt.Sprintf("获取数据库实例连接，失败：%v", err), zap.String("mongodb", config.Config.V.GetString("mongodb.port")))
 		panic(err)
 	}
 	defer db.Disconnect(context.TODO())
@@ -43,25 +44,25 @@ func main() {
 	//fmt.Println(databases)
 	var end bson.Raw
 	err = db.Database("db_pim2_dev").RunCommand(context.TODO(), bson.M{"listIndexes": "product_rule"}).Decode(&end)
-	logger.Log.Info(fmt.Sprintf("数据翎%v", end))
+	zap.L().Info(fmt.Sprintf("数据翎%v", end))
 	cur := end.Lookup("cursor")
 	_ = cur.Unmarshal(&cmd.Cursor)
 
 	//日志打印
-	logger.Log.Info("数据一", zap.String("mongodb", fmt.Sprintf("%v", cmd.Cursor.FirstBatch[0].Key[0].Key)))
+	zap.L().Info("数据一", zap.String("mongodb", fmt.Sprintf("%v", cmd.Cursor.FirstBatch[0].Key[0].Key)))
 
 	// objectID 操作方式
 	//方式一
 	var oid1 []ObjectIdStr
 	tmp_cursor1, _ := db.Database("db_pim2_dev").Collection("kk_test").Find(context.TODO(), bson.D{})
 	_ = tmp_cursor1.All(context.TODO(), &oid1)
-	logger.Log.Info(fmt.Sprintf("方式一%v", oid1))
+	zap.L().Info(fmt.Sprintf("方式一%v", oid1))
 
 	//方式二
 	var oid []ObjectId
 	tmp_cursor, _ := db.Database("db_pim2_dev").Collection("kk_test").Find(context.TODO(), bson.D{})
 	_ = tmp_cursor.All(context.TODO(), &oid)
-	logger.Log.Info(fmt.Sprintf("方式二%v", oid))
+	zap.L().Info(fmt.Sprintf("方式二%v", oid))
 
 	//方式三
 	var tmpIdStr []primitive.ObjectID
@@ -70,15 +71,15 @@ func main() {
 		tmpIdStr = append(tmpIdStr, tx)
 	}
 	filter := bson.M{"_id": bson.M{"$in": tmpIdStr}}
-	logger.Log.Info(fmt.Sprintf("filter333:=%v", filter))
+	zap.L().Info(fmt.Sprintf("filter333:=%v", filter))
 	inres, err := db.Database("db_pim2_dev").Collection("kk_test").Find(context.TODO(), filter)
 	if err != nil {
-		logger.Log.Info(fmt.Sprintf("err:=%v", err.Error()))
+		zap.L().Info(fmt.Sprintf("err:=%v", err.Error()))
 	}
 	var xw []ObjectId
 	_ = inres.All(context.TODO(), &xw)
 	for _, id := range xw {
-		logger.Log.Info(fmt.Sprintf("数据三：%v", id))
+		zap.L().Info(fmt.Sprintf("数据三：%v", id))
 	}
 	//方式四
 	//x1, _ := primitive.ObjectIDFromHex("621f0c12f3a959014cbe9fc0")
@@ -87,12 +88,12 @@ func main() {
 	//filter2 := bson.M{"_id": bson.M{"$in": []primitive.ObjectID{x1, x2, x3}}}
 	//inres2, err := db.Database("db_pim2_dev").Collection("kk_test").Find(context.TODO(), filter2)
 	//if err != nil {
-	//	logger.Log.Info(fmt.Sprintf("err:=%v", err.Error()))
+	//	zap.L().Info(fmt.Sprintf("err:=%v", err.Error()))
 	//}
 	//var xw2 []bson.M
 	//_ = inres2.All(context.TODO(), &xw2)
 	////for _, id := range xw2 {
-	//logger.Log.Info(fmt.Sprintf("数据四：%v", xw2))
+	//zap.L().Info(fmt.Sprintf("数据四：%v", xw2))
 	//}
 	//方式五
 	tmpIdStr2 := ArrayLengthTes(oid1)
@@ -102,26 +103,26 @@ func main() {
 	filter3 := bson.M{"_id": bson.M{"$in": tmpIdStr2}}
 	inres3, err := db.Database("db_pim2_dev").Collection("kk_test").Find(context.TODO(), filter3, options.Find().SetProjection(bson.D{{"noticeEffect", 0}, {"noticeInvalid", 0}}))
 	if err != nil {
-		logger.Log.Info(fmt.Sprintf("err:=%v", err.Error()))
+		zap.L().Info(fmt.Sprintf("err:=%v", err.Error()))
 	}
 	var xw5 []bson.D
 	var docs []interface{}
 	_ = inres3.All(context.TODO(), &xw5)
-	logger.Log.Info(fmt.Sprintf("xw5:=%v", xw5))
+	zap.L().Info(fmt.Sprintf("xw5:=%v", xw5))
 	for _, d := range xw5 {
 		docs = append(docs, d)
 		for _, e := range d {
 
-			logger.Log.Info(fmt.Sprintf("column_key:=%v", e.Key))
-			logger.Log.Info(fmt.Sprintf("column_value:=%v", e.Value))
+			zap.L().Info(fmt.Sprintf("column_key:=%v", e.Key))
+			zap.L().Info(fmt.Sprintf("column_value:=%v", e.Value))
 		}
-		logger.Log.Info(fmt.Sprintf("v:=%v", d))
+		zap.L().Info(fmt.Sprintf("v:=%v", d))
 	}
 	xy, err := db.Database("db_pim2_dev").Collection("kk_test_back_test1").InsertMany(context.TODO(), docs)
 	if err != nil {
-		logger.Log.Info(fmt.Sprintf("err:=%v", err.Error()))
+		zap.L().Info(fmt.Sprintf("err:=%v", err.Error()))
 	}
-	logger.Log.Info(fmt.Sprintf("res:=%v", xy.InsertedIDs))
+	zap.L().Info(fmt.Sprintf("res:=%v", xy.InsertedIDs))
 }
 func ArrayLengthTes(v interface{}) []primitive.ObjectID {
 	var tmpIdStr2 []primitive.ObjectID
@@ -133,7 +134,7 @@ func ArrayLengthTes(v interface{}) []primitive.ObjectID {
 			tmpIdStr2 = append(tmpIdStr2, tx)
 		}
 	default:
-		logger.Log.Error(fmt.Sprintf("类型不匹配:%v", reflect.TypeOf(v)))
+		zap.L().Error(fmt.Sprintf("类型不匹配:%v", reflect.TypeOf(v)))
 	}
 	return tmpIdStr2
 }

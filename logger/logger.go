@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -10,114 +11,87 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AIntelligenceGame/bus/config"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-var (
-	Log         *zap.Logger
-	logFilePath = config.Config.V.GetString("log.path")
-)
-
-func Exists(f string) bool {
-	_, err := os.Stat(f)
-	return err == nil || os.IsExist(err)
+type LoggerConfig struct {
+	EnvVar     string
+	MaxSize    int
+	MaxBackups int
+	MaxAge     int
 }
 
-func init() {
-	logFile, _ := filepath.Split(logFilePath)
-	os.MkdirAll(logFile, 0777)
-
-	Log = NewLogger()
-}
-
-func newLoggerHook() *lumberjack.Logger {
-	maxSize := config.Config.V.GetInt("log.max_size")
-	maxAge := config.Config.V.GetInt("log.max_age")
-	maxBackup := config.Config.V.GetInt("log.max_backup")
-
-	if logFilePath == "" {
-		logFilePath = "./log/agent.log"
+// InitLogger 初始化日志库，支持日志增强和日志轮转
+func InitLogger(config LoggerConfig) *zap.Logger {
+	// 默认使用 LOG_DIR 环境变量，如果传递了自定义的环境变量名，则使用该名称
+	if config.EnvVar == "" {
+		config.EnvVar = "LOG_DIR"
 	}
-	if maxAge == 0 {
-		maxAge = 30
+	if config.MaxSize == 0 {
+		config.MaxSize = 1
 	}
-	if maxSize == 0 {
-		maxSize = 100
+	if config.MaxBackups == 0 {
+		config.MaxBackups = 1
 	}
-	if maxBackup == 0 {
-		maxBackup = 30
+	if config.MaxAge == 0 {
+		config.MaxAge = 1
 	}
+	// 获取环境变量 (例如: LOG_DIR 或 LOG_DIR222)
+	logDir := os.ExpandEnv("${" + config.EnvVar + "}")
 
-	return &lumberjack.Logger{
-		Filename:   logFilePath, // 日志文件路径
-		MaxSize:    maxSize,     // 每个日志文件的最大大小,单位：MB
-		MaxBackups: maxBackup,   // 日志文件最多保留多少个
-		MaxAge:     maxAge,      // 文件最多保留多少天
-		Compress:   true,        // 是否压缩
-		LocalTime:  true,
-	}
-}
-
-func newLogLevel() zapcore.Level {
-	logLevel := config.Config.V.GetString("log.level")
-	switch logLevel {
-	case "debug":
-		return zapcore.DebugLevel
-	case "info":
-		return zapcore.InfoLevel
-	case "warn":
-		return zapcore.WarnLevel
-	case "error":
-		return zapcore.ErrorLevel
-	case "panic":
-		return zapcore.PanicLevel
-	case "fatal":
-		return zapcore.FatalLevel
-	default:
-		return zapcore.InfoLevel // 若未配置等级或配置错误将默认设置日志等级为INFO
-	}
-}
-
-func NewLogger() *zap.Logger {
-	hook := newLoggerHook()
-
-	encoderConfig := zapcore.EncoderConfig{
-		TimeKey:        "timestamp",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "caller",
-		MessageKey:     "message",
-		StacktraceKey:  "stacktrace",
-		LineEnding:     zapcore.DefaultLineEnding,
-		EncodeLevel:    zapcore.CapitalLevelEncoder,
-		EncodeTime:     zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05:000"),
-		EncodeDuration: zapcore.SecondsDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
-		EncodeName:     zapcore.FullNameEncoder,
+	// 如果环境变量为空，或者解析后的路径无效，则使用当前工作目录
+	if logDir == "" {
+		var err error
+		logDir, err = os.Getwd()
+		if err != nil {
+			log.Fatal("获取当前工作目录失败", err)
+		}
 	}
 
-	// 设置日志格式为JSON,日志信息写入"操作系统标准输出"与"指定路径的日志文件"
+	// 检查目录是否存在，如果不存在则使用默认路径 'debug.log'
+	if _, err := os.Stat(logDir); os.IsNotExist(err) {
+		// 如果目录不存在，使用当前工作目录
+		logDir = "."
+	}
+
+	// 创建日志文件路径，使用 'debug.log' 作为默认日志文件名
+	logFilePath := filepath.Join(logDir, "debug.log")
+
+	// 配置日志轮转
+	lumberjackLogger := &lumberjack.Logger{
+		Filename:   logFilePath,       // 日志文件路径
+		MaxSize:    config.MaxSize,    // 每个日志文件的最大尺寸，单位MB
+		MaxBackups: config.MaxBackups, // 保留的旧日志文件个数
+		MaxAge:     config.MaxAge,     // 保留旧日志文件的天数
+		Compress:   true,              // 是否压缩旧日志
+	}
+
+	// 创建日志级别配置
+	atom := zap.NewAtomicLevel()
+	atom.SetLevel(zap.InfoLevel) // 设置默认日志级别为 Info
+
+	// 设置日志输出配置
+	encoderConfig := zap.NewProductionEncoderConfig()
+	encoderConfig.TimeKey = "time"
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder // 设置时间戳格式
+	encoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+	encoderConfig.EncodeCaller = zapcore.FullCallerEncoder
+
+	// 创建日志输出器
 	core := zapcore.NewCore(
-		zapcore.NewJSONEncoder(encoderConfig),
-		// zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout), zapcore.AddSync(hook)),
-		zapcore.NewMultiWriteSyncer(zapcore.AddSync(hook)),
-		newLogLevel(), // 设置日志记录等级
+		zapcore.NewJSONEncoder(encoderConfig), // 使用 JSON 格式输出
+		zapcore.AddSync(lumberjackLogger),     // 设置日志输出到文件，支持日志轮转
+		atom,                                  // 设置日志级别
 	)
 
-	// 增加堆栈跟踪信息
-	caller := zap.AddCaller()
+	// 创建生产环境的日志配置，并指定输出到文件
+	logger := zap.New(core, zap.AddCaller(), zap.AddStacktrace(zap.ErrorLevel))
 
-	// 开启文件及行号
-	devel := zap.Development()
-
-	// 创建一个zap日志
-	logger := zap.New(core, caller, devel)
-
-	// zap.ReplaceGlobals(logger)
+	// 替换全局日志记录器
+	zap.ReplaceGlobals(logger)
 
 	return logger
 }
@@ -131,7 +105,7 @@ func GinLogger() gin.HandlerFunc {
 		c.Next()
 
 		cost := time.Since(start)
-		Log.Info(
+		zap.L().Info(
 			path,
 			zap.Int("status", c.Writer.Status()),
 			zap.String("method", c.Request.Method),
@@ -163,7 +137,7 @@ func GinRecovery(stack bool) gin.HandlerFunc {
 
 				httpRequest, _ := httputil.DumpRequest(c.Request, false)
 				if brokenPipe {
-					Log.Error(c.Request.URL.Path,
+					zap.L().Error(c.Request.URL.Path,
 						zap.Any("error", err),
 						zap.String("request", string(httpRequest)),
 					)
@@ -174,13 +148,13 @@ func GinRecovery(stack bool) gin.HandlerFunc {
 				}
 
 				if stack {
-					Log.Error("[Recovery from panic]",
+					zap.L().Error("[Recovery from panic]",
 						zap.Any("error", err),
 						zap.String("request", string(httpRequest)),
 						zap.String("stack", string(debug.Stack())),
 					)
 				} else {
-					Log.Error("[Recovery from panic]",
+					zap.L().Error("[Recovery from panic]",
 						zap.Any("error", err),
 						zap.String("request", string(httpRequest)),
 					)
@@ -190,14 +164,4 @@ func GinRecovery(stack bool) gin.HandlerFunc {
 		}()
 		c.Next()
 	}
-}
-
-// SetLogPath 允许修改配置文件位置
-func SetLogPath(file string) {
-	logFile, _ := filepath.Split(file)
-	if !Exists(file) {
-		os.MkdirAll(logFile, 0777)
-	}
-	logFilePath = logFile
-	Log = NewLogger()
 }
