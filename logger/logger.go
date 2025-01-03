@@ -78,7 +78,8 @@ func InitLogger(config LoggerConfig) *zap.Logger {
 	encoderConfig.TimeKey = "time"
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder // 设置时间戳格式
 	encoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
-	encoderConfig.EncodeCaller = zapcore.FullCallerEncoder
+	// encoderConfig.EncodeCaller = zapcore.FullCallerEncoder  //显示完整路径
+	encoderConfig.EncodeCaller = zapcore.ShortCallerEncoder //仅显示文件名和行号
 
 	// 创建日志输出器
 	core := zapcore.NewCore(
