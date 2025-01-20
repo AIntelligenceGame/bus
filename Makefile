@@ -18,3 +18,8 @@ git:
 	git add .
 	git commit -m 'migrate'
 	git push
+
+# 构建 Golang C 共享库
+build-shared-lib:
+	go build -buildmode=c-shared -o libso.so ./so/so.go
+	echo "Golang shared library (libso.so) built successfully."
