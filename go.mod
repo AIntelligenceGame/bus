@@ -14,6 +14,7 @@ require (
 	github.com/axgle/mahonia v0.0.0-20180208002826-3358181d7394
 	github.com/bhendo/go-powershell v0.0.0-20190719160123-219e7fb4e41e
 	github.com/dolthub/go-mysql-server v0.16.0
+	github.com/ebitengine/purego v0.8.2
 	github.com/gin-contrib/cors v1.4.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/gin-middleware/xxl-job-executor v1.0.0

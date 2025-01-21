@@ -19,13 +19,6 @@ typedef struct { const char *p; ptrdiff_t n; } _GoString_;
 /* Start of preamble from import "C" comments.  */
 
 
-#line 3 "so.go"
-
-
-#include <stdlib.h>
-#include <stdio.h>
-
-#line 1 "cgo-generated-wrapper"
 
 
 /* End of preamble from import "C" comments.  */
@@ -81,8 +74,7 @@ typedef struct { void *data; GoInt len; GoInt cap; } GoSlice;
 extern "C" {
 #endif
 
-extern void PrintHello();
-extern void PrintMessage(char* msg);
+extern GoInt add(GoInt a, GoInt b);
 
 #ifdef __cplusplus
 }

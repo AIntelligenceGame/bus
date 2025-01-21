@@ -1,48 +1,30 @@
 package main
 
-/*
-#cgo CFLAGS: -g -Wall
-#cgo LDFLAGS: -L. -lso
-#include <stdlib.h>
-#include "libso.h"
-*/
-import "C"
 import (
 	"fmt"
-	"unsafe"
+	"runtime"
+
+	"github.com/ebitengine/purego"
 )
 
-//export PrintHello
-func PrintHello() {
-	fmt.Println("hello, world!")
+func getSystemLibrary() string {
+	switch runtime.GOOS {
+	case "darwin":
+		return "/usr/lib/libSystem.B.dylib"
+	case "linux":
+		return "example/sogo/libso.so"
+	default:
+		panic(fmt.Errorf("GOOS=%s is not supported", runtime.GOOS))
+	}
 }
 
-//export PrintMessage
-func PrintMessage(msg *C.char) {
-	cstr := C.GoString(msg)
-	fmt.Println(cstr)
-}
-
+// 无法支持结构体定义出入和使用（so库）
 func main() {
-	// 调用共享库中的PrintHello函数
-	C.PrintHello()
-
-	// 调用共享库中的PrintMessage函数
-	message := C.CString("Hello from Go!")
-	defer C.free(unsafe.Pointer(message))
-	C.PrintMessage(message)
+	libc, err := purego.Dlopen(getSystemLibrary(), purego.RTLD_NOW|purego.RTLD_GLOBAL)
+	if err != nil {
+		panic(err)
+	}
+	var puts func(int, int) int
+	purego.RegisterLibFunc(&puts, libc, "add")
+	fmt.Println(puts(1, 2))
 }
-
-/*
-解释
-cgo指令：
-
-#cgo CFLAGS: -g -Wall：编译选项。
-#cgo LDFLAGS: -L. -lso：链接选项，告诉链接器在当前目录下查找libso.so库。
-#include <stdlib.h>：包含stdlib.h以确保C.free可用。
-#include "libso.h"：包含生成的头文件libso.h，以便使用其中声明的函数。
-调用函数：
-
-C.PrintHello()：直接调用共享库中的PrintHello函数。
-C.PrintMessage(message)：调用共享库中的PrintMessage函数，并传递一个C字符串。注意使用C.CString将Go字符串转换为C字符串，并使用defer C.free(unsafe.Pointer(message))释放内存。
-*/

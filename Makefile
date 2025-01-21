@@ -25,9 +25,11 @@ git:
 build-shared-lib:
 	git config user.email "org-lib@163.com"
 	git config user.name "org-lib"
+	# go mod tidy
+	# go work vendor
 	g use 1.22.0 && go clean -i && go build -buildmode=c-shared -o ./example/sogo/libso.so ./so/so.go
 	# go build -buildmode=c-shared -o ./example/sogo/libso.so ./so/so.go -ldflags="-rpath /service/home/devyuandeqiao/gomodworkspace/gowork/bus/example/sogo"
 	echo "---------Golang shared library (libso.so) built successfully.---------"
 	# 运行时需要指定so文件目录
-	export LD_LIBRARY_PATH=/service/home/devyuandeqiao/gomodworkspace/gowork/bus/example/sogo:$LD_LIBRARY_PATH
+	# export LD_LIBRARY_PATH=/service/home/devyuandeqiao/gomodworkspace/gowork/bus/example/sogo:$LD_LIBRARY_PATH
 	go run example/sogo/sogo.go
