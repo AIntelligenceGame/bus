@@ -1,8 +1,10 @@
-// #cgo CFLAGS: -g -Wall
-// #include <stdlib.h>
-
 package main
 
+/*
+#cgo CFLAGS: -g -Wall
+#include <stdlib.h>
+#include <stdio.h>
+*/
 import "C"
 import (
 	"fmt"
