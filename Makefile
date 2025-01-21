@@ -14,6 +14,8 @@ gomobile:
 build-ios:
 
 git:
+	git config user.email "org-lib@163.com"
+	git config user.name "org-lib"
 	git pull
 	git add .
 	git commit -m 'migrate'
@@ -21,5 +23,12 @@ git:
 
 # 构建 Golang C 共享库
 build-shared-lib:
-	go build -buildmode=c-shared -o libso.so ./so/so.go
-	echo "Golang shared library (libso.so) built successfully."
+	git config user.email "org-lib@163.com"
+	git config user.name "org-lib"
+	g use 1.22.0
+	go build -buildmode=c-shared -o ./example/sogo/libso.so ./so/so.go
+	# go build -buildmode=c-shared -o ./example/sogo/libso.so ./so/so.go -ldflags="-rpath /service/home/devyuandeqiao/gomodworkspace/gowork/bus/example/sogo"
+	echo "---------Golang shared library (libso.so) built successfully.---------"
+	# 运行时需要指定so文件目录
+	export LD_LIBRARY_PATH=/service/home/devyuandeqiao/gomodworkspace/gowork/bus/example/sogo:$LD_LIBRARY_PATH
+	go run example/sogo/so.go

@@ -1,7 +1,7 @@
 // #cgo CFLAGS: -g -Wall
 // #include <stdlib.h>
 
-package so
+package main
 
 import "C"
 import (
