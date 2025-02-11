@@ -7,12 +7,6 @@ import (
 	"github.com/ebitengine/purego"
 )
 
-// 定义与so.go中相同的结构体
-type MyStruct struct {
-	A int
-	B int
-}
-
 func getSystemLibrary() string {
 	switch runtime.GOOS {
 	case "darwin":
@@ -30,11 +24,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	var addStruct func(MyStruct) int
-	purego.RegisterLibFunc(&addStruct, libc, "addStruct")
-
-	// 创建结构体实例并调用addStruct函数
-	s := MyStruct{A: 1, B: 2}
-	result := addStruct(s)
-	fmt.Println(result)
+	var puts func(int, int) int
+	purego.RegisterLibFunc(&puts, libc, "add")
+	fmt.Println(puts(1, 2))
 }
