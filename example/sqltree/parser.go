@@ -30,7 +30,7 @@ type SelectDetails struct {
 
 func main() {
 	// 定义要解析的SQL语句
-	sqlStr := "CREATE TABLE tablename (id INT, name VARCHAR(20));"
+	sqlStr := "select c,count(*) cnt from tablename where a = 1 and b = 2 group by c having count(*) > 1 order by c desc limit 10"
 
 	// 创建解析上下文
 	ctx := sql.NewContext(nil)
@@ -41,6 +41,7 @@ func main() {
 		fmt.Println("parse error:", err)
 		return
 	}
+	fmt.Println("parse top:", stmt.String())
 
 	// 创建SQLStatement结构体实例
 	var sqlStmt SQLStatement
@@ -143,31 +144,81 @@ func getChildDetails(node sql.Node) SelectDetails {
 	switch child := node.(type) {
 	case *plan.Project:
 		selectDetails.SelectedExprs = extractSelectedExprs(child)
-		selectDetails.From = extractFrom(child)
+		childDetails := getChildDetails(child.Child)
+		selectDetails.From = childDetails.From
+		selectDetails.Where = childDetails.Where
+		selectDetails.GroupBy = childDetails.GroupBy
+		selectDetails.Having = childDetails.Having
+		selectDetails.OrderBy = childDetails.OrderBy
 	case *plan.Filter:
 		selectDetails.Where = extractWhere(child)
+		childDetails := getChildDetails(child.Child)
+		selectDetails.SelectedExprs = childDetails.SelectedExprs
+		selectDetails.From = childDetails.From
+		selectDetails.GroupBy = childDetails.GroupBy
+		selectDetails.Having = childDetails.Having
+		selectDetails.OrderBy = childDetails.OrderBy
 	case *plan.GroupBy:
 		selectDetails.GroupBy = extractGroupBy(child)
+		selectDetails.Having = extractHaving(child)
+		childDetails := getChildDetails(child.Child)
+		selectDetails.SelectedExprs = childDetails.SelectedExprs
+		selectDetails.From = childDetails.From
+		selectDetails.Where = childDetails.Where
+		selectDetails.OrderBy = childDetails.OrderBy
 	case *plan.Sort:
 		selectDetails.OrderBy = extractOrderBy(child)
+		childDetails := getChildDetails(child.Child)
+		selectDetails.SelectedExprs = childDetails.SelectedExprs
+		selectDetails.From = childDetails.From
+		selectDetails.Where = childDetails.Where
+		selectDetails.GroupBy = childDetails.GroupBy
+		selectDetails.Having = childDetails.Having
+	case *plan.Limit:
+		selectDetails.Limit = extractLimit(child)
+		childDetails := getChildDetails(child.Child)
+		selectDetails.SelectedExprs = childDetails.SelectedExprs
+		selectDetails.From = childDetails.From
+		selectDetails.Where = childDetails.Where
+		selectDetails.GroupBy = childDetails.GroupBy
+		selectDetails.Having = childDetails.Having
+		selectDetails.OrderBy = childDetails.OrderBy
+	case *plan.ResolvedTable:
+		selectDetails.From = child.Name()
+	case *plan.TableAlias:
+		selectDetails.From = child.Name()
 	}
 	return selectDetails
 }
 
 // extractSelectedExprs extracts the selected expressions from a plan.Project node.
-func extractSelectedExprs(node *plan.Project) []string {
+func extractSelectedExprs(node sql.Node) []string {
 	var exprs []string
-	for _, expr := range node.Projections {
-		exprs = append(exprs, expr.String())
+	if project, ok := node.(*plan.Project); ok {
+		for _, expr := range project.Projections {
+			exprs = append(exprs, expr.String())
+		}
 	}
 	return exprs
 }
 
 // extractFrom extracts the FROM clause from a plan.Project node.
-func extractFrom(node *plan.Project) string {
-	// Assuming the child node is a plan.ResolvedTable
-	if child, ok := node.Child.(*plan.ResolvedTable); ok {
-		return child.Name()
+func extractFrom(node sql.Node) string {
+	switch n := node.(type) {
+	case *plan.Project:
+		return extractFrom(n.Child)
+	case *plan.Filter:
+		return extractFrom(n.Child)
+	case *plan.GroupBy:
+		return extractFrom(n.Child)
+	case *plan.Sort:
+		return extractFrom(n.Child)
+	case *plan.Limit:
+		return extractFrom(n.Child)
+	case *plan.ResolvedTable:
+		return n.Name()
+	case *plan.TableAlias:
+		return n.Name()
 	}
 	return ""
 }
@@ -192,10 +243,12 @@ func extractGroupBy(node sql.Node) []string {
 	return nil
 }
 
-// extractHaving extracts the HAVING clause from a plan.Filter node.
+// extractHaving extracts the HAVING clause from a plan.GroupBy node.
 func extractHaving(node sql.Node) string {
-	if filter, ok := node.(*plan.Filter); ok {
-		return filter.Expression.String()
+	if groupBy, ok := node.(*plan.GroupBy); ok {
+		if filter, ok := groupBy.Child.(*plan.Filter); ok {
+			return filter.Expression.String()
+		}
 	}
 	return ""
 }

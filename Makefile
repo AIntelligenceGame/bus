@@ -33,3 +33,4 @@ build-shared-lib:
 	# cgo 方式调用运行时需要指定so文件目录到LD_LIBRARY_PATH。purego方式也就是syscall方式不需要指定
 	# export LD_LIBRARY_PATH=/service/home/devyuandeqiao/gomodworkspace/gowork/bus/example/sogo:$LD_LIBRARY_PATH
 	go run example/sogo/sogo.go
+	# go build -ldflags="-s -w -X main.sharedLibrary=$(cat libexample.so)" -o app example/sogo/sogo.go
