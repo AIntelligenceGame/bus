@@ -2,6 +2,7 @@ package cors
 
 import (
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -69,5 +70,26 @@ func CorsPlus() gin.HandlerFunc {
 		}
 		// 处理请求
 		c.Next()
+	}
+}
+func ECorsPlus(allowedOrigins []string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.Request.Header.Get("Origin")
+		// 动态判断允许的 Origin（更安全）
+		if slices.Contains(allowedOrigins, origin) {
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Access-Control-Allow-Credentials", "true")
+		}
+
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, Token")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Expose-Headers", "Content-Length, Authorization")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next() // 继续执行后续中间件和路由
 	}
 }
