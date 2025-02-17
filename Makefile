@@ -18,7 +18,7 @@ git:
 	git config user.name "org-lib"
 	git pull
 	git add .
-	git commit -m 'migrate'
+	git commit -m '升级golang版本'
 	git push
 
 # 构建 Golang C 共享库
