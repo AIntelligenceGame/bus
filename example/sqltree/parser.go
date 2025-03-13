@@ -69,55 +69,32 @@ func main() {
 			Details: node,
 		}
 	case *plan.Project:
-		selectDetails := SelectDetails{
-			SelectedExprs: extractSelectedExprs(node),
-			From:          extractFrom(node),
-			Where:         extractWhere(node),
-			GroupBy:       extractGroupBy(node),
-			Having:        extractHaving(node),
-			OrderBy:       extractOrderBy(node),
-			Limit:         extractLimit(node),
-		}
+		selectDetails := getChildDetails(node)
 		sqlStmt = SQLStatement{
 			Type:    "Select",
 			Details: selectDetails,
 		}
 	case *plan.Filter:
-		selectDetails := SelectDetails{
-			Where: extractWhere(node),
-		}
+		selectDetails := getChildDetails(node)
 		sqlStmt = SQLStatement{
 			Type:    "Filter",
 			Details: selectDetails,
 		}
 	case *plan.GroupBy:
-		selectDetails := SelectDetails{
-			GroupBy: extractGroupBy(node),
-		}
+		selectDetails := getChildDetails(node)
 		sqlStmt = SQLStatement{
 			Type:    "GroupBy",
 			Details: selectDetails,
 		}
 	case *plan.Sort:
-		selectDetails := SelectDetails{
-			OrderBy: extractOrderBy(node),
-		}
+		selectDetails := getChildDetails(node)
 		sqlStmt = SQLStatement{
 			Type:    "Sort",
 			Details: selectDetails,
 		}
 	case *plan.Limit:
-		// 获取子节点的详细信息
-		childDetails := getChildDetails(node.Child)
-		selectDetails := SelectDetails{
-			SelectedExprs: childDetails.SelectedExprs,
-			From:          childDetails.From,
-			Where:         childDetails.Where,
-			GroupBy:       childDetails.GroupBy,
-			Having:        childDetails.Having,
-			OrderBy:       childDetails.OrderBy,
-			Limit:         extractLimit(node),
-		}
+		selectDetails := getChildDetails(node)
+		selectDetails.Limit = extractLimit(node)
 		sqlStmt = SQLStatement{
 			Type:    "Select",
 			Details: selectDetails,
@@ -138,7 +115,7 @@ func main() {
 	fmt.Println(string(jsonOutput))
 }
 
-// getChildDetails extracts details from the child node of a plan.Limit node.
+// getChildDetails extracts details from the child node of a plan node.
 func getChildDetails(node sql.Node) SelectDetails {
 	var selectDetails SelectDetails
 	switch child := node.(type) {

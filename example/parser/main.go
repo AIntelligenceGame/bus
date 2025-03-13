@@ -31,31 +31,51 @@ func (l *MyListener) GetTableNames() []string {
 	return arr
 }
 
-// 重写EnterSelectStatement方法，处理SELECT语句
-func (l *MyListener) EnterSelectStatement(ctx *parser.SelectStatementContext) {
-	fmt.Println("Enter SELECT statement")
-	fmt.Println(ctx.GetText())
+// 添加更多调试方法
+func (l *MyListener) EnterSelectElements(ctx *parser.SelectElementsContext) {
+	fmt.Println("DEBUG: Entering SelectElements")
+	fmt.Printf("DEBUG: SelectElements text: %s\n", ctx.GetText())
 
-	// 解析并存储字段列
-	l.parseSelectColumns(ctx)
+	// 清空之前的列
+	l.columns = make([]string, 0)
 
-	fmt.Println("Columns:", l.columns)
-	fmt.Println()
+	elements := ctx.AllSelectElement()
+	fmt.Printf("DEBUG: Found %d select elements\n", len(elements))
+
+	// 获取所有的 SelectElement
+	for i, element := range elements {
+		columnText := element.GetText()
+		fmt.Printf("DEBUG: Element %d: %s\n", i, columnText)
+		l.columns = append(l.columns, strings.TrimSpace(columnText))
+	}
 }
 
-// 解析SELECT语句中的列名
-func (l *MyListener) parseSelectColumns(ctx *parser.SelectStatementContext) {
-	// 获取SELECT语句的子节点
-	children := ctx.GetChildren()
+func (l *MyListener) EnterSelectElement(ctx *parser.SelectElementContext) {
+	fmt.Println("DEBUG: Entering SelectElement")
+	fmt.Printf("DEBUG: SelectElement text: %s\n", ctx.GetText())
 
-	// 遍历子节点，查找列名
-	for _, child := range children {
-		if columnCtx, ok := child.(*parser.SelectElementContext); ok {
-			// 获取列名
-			column := strings.TrimSpace(columnCtx.GetText())
-			l.columns = append(l.columns, column)
+	// 将当前元素添加到列中
+	columnText := ctx.GetText()
+	l.columns = append(l.columns, strings.TrimSpace(columnText))
+}
+
+// 修改 EnterSelectStatement 方法，添加更多调试信息
+func (l *MyListener) EnterSelectStatement(ctx *parser.SelectStatementContext) {
+	fmt.Println("\nDEBUG: Enter SELECT statement")
+	fmt.Printf("DEBUG: Statement type: %T\n", ctx)
+	fmt.Printf("DEBUG: Child count: %d\n", ctx.GetChildCount())
+
+	// 打印所有子节点类型
+	for i := 0; i < ctx.GetChildCount(); i++ {
+		child := ctx.GetChild(i)
+		// Convert child to antlr.ParseTree which has GetText() method
+		if parseTree, ok := child.(antlr.ParseTree); ok {
+			fmt.Printf("DEBUG: Child %d type: %T, text: %s\n", i, child, parseTree.GetText())
 		}
 	}
+
+	fmt.Printf("DEBUG: Current columns: %v\n", l.columns)
+	fmt.Println()
 }
 
 // 重写EnterFromClause方法，处理FROM子句
