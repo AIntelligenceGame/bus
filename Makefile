@@ -14,11 +14,16 @@ gomobile:
 build-ios:
 
 git:
-	git config user.email "org-lib@163.com"
-	git config user.name "org-lib"
-	git pull
-	git add .
-	git commit -m '升级golang版本'
+	@read -p "请输入提交说明: " msg; \
+	if [ -z "$$msg" ]; then \
+	  echo "提交说明不能为空，已取消提交。"; \
+	  exit 1; \
+	fi; \
+	git config user.email "org-lib@163.com"; \
+	git config user.name "org-lib"; \
+	git pull; \
+	git add .; \
+	git commit -m "$$msg"; \
 	git push
 
 # 构建 Golang C 共享库
