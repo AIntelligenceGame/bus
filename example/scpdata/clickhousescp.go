@@ -76,6 +76,7 @@ type migrationResult struct {
 var doneSegmentMu sync.Mutex
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Parse()
 	if srcTable == "" || dstTable == "" || timeField == "" {
 		log.Fatal("src-table、dst-table、time-field 参数必填")
@@ -370,7 +371,8 @@ func checkTimeField(cols []columnInfo, field string) bool {
 		return false
 	}
 	for _, c := range cols {
-		if c.Name == field && strings.HasPrefix(strings.ToLower(c.Type), "datetime") {
+		t := strings.ToLower(c.Type)
+		if c.Name == field && (strings.HasPrefix(t, "datetime") || strings.HasPrefix(t, "date") || strings.HasPrefix(t, "timestamp")) {
 			return true
 		}
 	}
