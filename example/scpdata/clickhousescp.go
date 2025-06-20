@@ -69,6 +69,8 @@ func main() {
 	if srcTable == "" || dstTable == "" || timeField == "" {
 		log.Fatal("src-table、dst-table、time-field 参数必填")
 	}
+	fmt.Println("srcDSN:", srcDSN)
+	fmt.Println("dstDSN:", dstDSN)
 
 	srcDB, err := gorm.Open(clickhouse.Open(srcDSN), &gorm.Config{})
 	if err != nil {
@@ -160,14 +162,35 @@ func getTableColumns(db *gorm.DB, table string) ([]columnInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	lines := strings.Split(createSQL, "\n")
 	cols := []columnInfo{}
-	re := regexp.MustCompile(`(?m)^\s*(?:` + "`" + `)?([a-zA-Z0-9_]+)(?:` + "`" + `)?\s+([a-zA-Z0-9()]+)`)
-	matches := re.FindAllStringSubmatch(createSQL, -1)
-	for _, m := range matches {
-		if isIgnoredField(m[1]) {
-			continue // 跳过忽略字段
+	// 字段正则：兼容有无反引号，类型支持复杂内容（如Nullable(DateTime), String, UInt64等）
+	fieldRe := regexp.MustCompile(`(?m)^\s*(?:` + "`" + `)?([a-zA-Z0-9_]+)(?:` + "`" + `)?\s+([a-zA-Z0-9()]+)`) // 允许括号和下划线
+	inFields := false
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
 		}
-		cols = append(cols, columnInfo{Name: m[1], Type: m[2]})
+		if strings.HasPrefix(line, "(") {
+			inFields = true
+			continue
+		}
+		if strings.HasPrefix(line, ")") || strings.HasPrefix(line, "ENGINE") {
+			break
+		}
+		if !inFields {
+			continue
+		}
+		if strings.HasPrefix(line, "INDEX") ||
+			strings.HasPrefix(line, "PRIMARY") ||
+			strings.HasPrefix(line, "ORDER") ||
+			strings.HasPrefix(line, "SETTINGS") {
+			continue
+		}
+		if m := fieldRe.FindStringSubmatch(line); m != nil {
+			cols = append(cols, columnInfo{Name: m[1], Type: m[2]})
+		}
 	}
 	return cols, nil
 }
@@ -257,7 +280,13 @@ func worker(srcDB, dstDB *gorm.DB, columns []columnInfo, segmentChan <-chan time
 
 // GORM版本的migrateSegment
 func migrateSegment(srcDB, dstDB *gorm.DB, columns []columnInfo, colIndexes []int, srcTable, dstTable, timeField string, startHour, endHour time.Time, colList, placeholders string) (int, int, error) {
-	q := fmt.Sprintf("SELECT * FROM %s WHERE %s >= ? AND %s < ? ORDER BY %s", srcTable, timeField, timeField, timeField)
+	// 用明确字段名替换 SELECT *
+	fieldNames := []string{}
+	for _, c := range columns {
+		fieldNames = append(fieldNames, c.Name)
+	}
+	selectFields := strings.Join(fieldNames, ",")
+	q := fmt.Sprintf("SELECT %s FROM %s WHERE %s >= ? AND %s < ? ORDER BY %s", selectFields, srcTable, timeField, timeField, timeField)
 	rows, err := srcDB.Raw(q, startHour, endHour).Rows()
 	if err != nil {
 		return 0, 0, err
