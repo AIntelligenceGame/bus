@@ -110,6 +110,12 @@ func main() {
 	}
 	defer logFile.Close()
 
+	// 迁移前字段顺序/类型/值映射日志校验
+	err = logFirstRowFieldMapping(srcDB, srcTable, columns, logFile)
+	if err != nil {
+		log.Fatalf("迁移前字段映射校验失败: %v", err)
+	}
+
 	var wg sync.WaitGroup
 	segmentChan := make(chan time.Time, parallelism*2)
 	results := make(chan migrationResult, parallelism*2)
@@ -151,12 +157,95 @@ func main() {
 		maxTime = newMax
 	}
 
+	// rename 前获取目标表最大时间戳，作为兜底增量的起点
+	var maxTimeInDstTableBeforeRename time.Time
+	row2 := dstDB.Raw(fmt.Sprintf("SELECT max(%s) FROM %s", timeField, dstTable)).Row()
+	if err := row2.Scan(&maxTimeInDstTableBeforeRename); err != nil {
+		log.Fatalf("RENAME 前获取目标表最大时间戳失败: %v", err)
+	}
+	log.Printf("RENAME 前目标表最大时间戳: %s", maxTimeInDstTableBeforeRename.Format("2006-01-02 15:04:05"))
+
 	// rename 表
 	err = renameTables(srcDB, dstDB, srcTable, dstTable)
 	if err != nil {
 		log.Fatalf("重命名表失败: %v", err)
 	}
 	log.Println("迁移和重命名完成")
+
+	// RENAME 后用 rename 前目标表最大时间戳作为兜底增量起点
+	bakTable := srcTable + "_bak"
+	log.Printf("重命名后检查 _bak 表是否有新数据写入，时间字段大于等于 %s", maxTimeInDstTableBeforeRename.Format("2006-01-02 15:04:05"))
+	// 1. 查询 _bak 表 timeField > maxTimeInDstTableBeforeRename 的所有数据，全部补差
+	bakCols, err := getTableColumns(srcDB, bakTable)
+	if err != nil {
+		log.Fatalf("获取 _bak 表结构失败: %v", err)
+	}
+	colNames := []string{}
+	for _, c := range bakCols {
+		if isIgnoredField(c.Name) {
+			continue
+		}
+		colNames = append(colNames, "`"+c.Name+"`")
+	}
+	colList := strings.Join(colNames, ",")
+	// 2. 查询 _bak 表 timeField = maxTimeInDstTableBeforeRename 的所有数据
+	var bakRowsAtMax []map[string]interface{}
+	err = srcDB.Table(bakTable).Select(colList).Where(fmt.Sprintf("%s = ?", timeField), maxTimeInDstTableBeforeRename).Find(&bakRowsAtMax).Error
+	if err != nil {
+		log.Fatalf("_bak 表 timeField=maxTimeInDstTableBeforeRename 查询失败: %v", err)
+	}
+	// 3. 查询目标表 timeField = maxTimeInDstTableBeforeRename 的所有数据
+	var dstRowsAtMax []map[string]interface{}
+	err = srcDB.Table(srcTable).Select(colList).Where(fmt.Sprintf("%s = ?", timeField), maxTimeInDstTableBeforeRename).Find(&dstRowsAtMax).Error
+	if err != nil {
+		log.Fatalf("目标表 timeField=maxTimeInDstTableBeforeRename 查询失败: %v", err)
+	}
+	// 4. 构建目标表数据的哈希集合
+	dstRowSet := map[string]struct{}{}
+	for _, row := range dstRowsAtMax {
+		b, _ := json.Marshal(row)
+		dstRowSet[string(b)] = struct{}{}
+	}
+	// 5. 只插入目标表没有的那部分
+	var needInsertRows []map[string]interface{}
+	for _, row := range bakRowsAtMax {
+		b, _ := json.Marshal(row)
+		if _, exists := dstRowSet[string(b)]; !exists {
+			needInsertRows = append(needInsertRows, row)
+		}
+	}
+	if len(needInsertRows) > 0 {
+		log.Printf("_bak 表 timeField=%s 需补差 %d 条", maxTimeInDstTableBeforeRename.Format("2006-01-02 15:04:05"), len(needInsertRows))
+		if err := dstDB.Table(srcTable).CreateInBatches(needInsertRows, 1000).Error; err != nil {
+			log.Fatalf("_bak 表 timeField=maxTimeInDstTableBeforeRename 补差写入失败: %v", err)
+		}
+		log.Printf("_bak 表 timeField=maxTimeInDstTableBeforeRename 补差写入完成")
+	} else {
+		log.Printf("_bak 表 timeField=%s 无需补差", maxTimeInDstTableBeforeRename.Format("2006-01-02 15:04:05"))
+	}
+	// 6. 处理 _bak 表 timeField > maxTimeInDstTableBeforeRename 的数据（批量迁移）
+	bakMin, bakMax, err := getTimeRange(srcDB, bakTable, timeField, maxTimeInDstTableBeforeRename.Add(time.Nanosecond).Format("2006-01-02 15:04:05"))
+	if err != nil {
+		log.Fatalf("_bak 表兜底增量时间范围获取失败: %v", err)
+	}
+	if !bakMin.IsZero() && bakMax.After(maxTimeInDstTableBeforeRename) {
+		log.Printf("_bak 表有新数据: %s ~ %s，开始兜底增量迁移", bakMin, bakMax)
+		var bakWg sync.WaitGroup
+		bakChan := make(chan time.Time, parallelism*2)
+		bakResults := make(chan migrationResult, parallelism*2)
+		for i := 0; i < parallelism; i++ {
+			bakWg.Add(1)
+			go worker(srcDB, dstDB, bakCols, bakChan, bakResults, &bakWg, bakTable, srcTable, timeField, nil)
+		}
+		go processResults(bakResults, logFile, bakMin, bakMax)
+		generateHourlySegmentsWithSkip(bakMin, bakMax, bakChan, nil)
+		close(bakChan)
+		bakWg.Wait()
+		close(bakResults)
+		log.Printf("_bak 表兜底增量迁移完成")
+	} else {
+		log.Printf("_bak 表无新数据，无需兜底增量")
+	}
 }
 
 // GORM版本的表结构获取
@@ -168,8 +257,9 @@ func getTableColumns(db *gorm.DB, table string) ([]columnInfo, error) {
 	}
 	lines := strings.Split(createSQL, "\n")
 	cols := []columnInfo{}
-	// 字段正则：兼容有无反引号，类型支持复杂内容（如Nullable(DateTime), String, UInt64等）
-	fieldRe := regexp.MustCompile(`(?m)^\s*(?:` + "`" + `)?([a-zA-Z0-9_]+)(?:` + "`" + `)?\s+([a-zA-Z0-9()]+)`) // 允许括号和下划线
+	// 优化后的字段正则：支持嵌套括号、引号、逗号、空格、所有 ClickHouse 字段类型
+	// 字段名：反引号或无反引号，字段类型：允许嵌套括号、引号、逗号、空格、数字、字母等，直到遇到逗号或行尾
+	fieldRe := regexp.MustCompile(`(?m)^\s*(?:` + "`" + `)?([a-zA-Z0-9_]+)(?:` + "`" + `)?\s+((?:[a-zA-Z0-9_]+(?:\([^)]*\))?)(?:\s*(?:Nullable|Array|Enum|Decimal|LowCardinality|FixedString|DateTime64|DateTime|Date|UUID|Int\d*|UInt\d*|Float\d*|String|Map|Tuple|IPv4|IPv6|Enum8|Enum16|Decimal\([^)]*\))*)?(?:\([^)]*\))?(?:\s*('[^']*'|"[^"]*")*)*)`)
 	inFields := false
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -193,7 +283,7 @@ func getTableColumns(db *gorm.DB, table string) ([]columnInfo, error) {
 			continue
 		}
 		if m := fieldRe.FindStringSubmatch(line); m != nil {
-			cols = append(cols, columnInfo{Name: m[1], Type: m[2]})
+			cols = append(cols, columnInfo{Name: m[1], Type: strings.TrimSpace(m[2])})
 		}
 	}
 	return cols, nil
@@ -333,30 +423,34 @@ func migrateSegment(srcDB, dstDB *gorm.DB, columns []columnInfo, colIndexes []in
 	return rowsRead, rowsWritten, nil
 }
 
-// GORM版本的insertBatch
+// GORM版本的insertBatch，使用 CreateInBatches 优化批量插入
 func insertBatch(db *gorm.DB, table string, vals [][]interface{}, colList, placeholders string) (int, error) {
 	if len(vals) == 0 {
 		return 0, nil
 	}
 	inserted := 0
-	q := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", table, colList, placeholders)
+	batchSize := 1000 // GORM 推荐批量大小
+	// 构造 map 列表用于 GORM 批量插入
+	columns := strings.Split(strings.ReplaceAll(colList, "`", ""), ",")
+	records := make([]map[string]interface{}, 0, len(vals))
 	for _, row := range vals {
-		retry := 0
-		for {
-			if err := db.Exec(q, row...).Error; err != nil {
-				retry++
-				if retry < 3 {
-					log.Printf("写入失败重试: %v", err)
-					time.Sleep(2 * time.Second)
-					continue
-				} else {
-					log.Printf("跳过异常行: %v", err)
-					break
-				}
-			}
-			inserted++
-			break
+		rec := map[string]interface{}{}
+		for i, col := range columns {
+			rec[strings.TrimSpace(col)] = row[i]
 		}
+		records = append(records, rec)
+	}
+	for i := 0; i < len(records); i += batchSize {
+		end := i + batchSize
+		if end > len(records) {
+			end = len(records)
+		}
+		batch := records[i:end]
+		if err := db.Table(table).CreateInBatches(batch, batchSize).Error; err != nil {
+			log.Printf("批量写入失败: %v", err)
+			return inserted, err
+		}
+		inserted += len(batch)
 	}
 	return inserted, nil
 }
@@ -471,4 +565,39 @@ func saveDoneSegment(seg string) {
 	}
 	defer f.Close()
 	f.WriteString(seg + "\n")
+}
+
+// 迁移前抽取一条数据，按迁移字段顺序和拼接方式，打印字段名、类型、值，写入日志
+func logFirstRowFieldMapping(srcDB *gorm.DB, srcTable string, columns []columnInfo, logFile *os.File) error {
+	colNames := []string{}
+	colTypes := []string{}
+	for _, c := range columns {
+		if isIgnoredField(c.Name) {
+			continue
+		}
+		colNames = append(colNames, c.Name)
+		colTypes = append(colTypes, c.Type)
+	}
+	colList := ""
+	for i, name := range colNames {
+		if i > 0 {
+			colList += ", "
+		}
+		colList += "`" + name + "`"
+	}
+	var row = make(map[string]interface{})
+	err := srcDB.Table(srcTable).Select(colList).Order("rand()").Limit(1).Find(&row).Error
+	if err != nil {
+		return fmt.Errorf("源表抽取随机行失败: %v", err)
+	}
+	if len(row) == 0 {
+		logFile.WriteString("源表无数据，跳过首行字段映射校验\n")
+		return nil
+	}
+	logFile.WriteString("迁移前字段顺序/类型/值映射校验如下：\n")
+	for i, name := range colNames {
+		val := row[name]
+		logFile.WriteString(fmt.Sprintf("字段%d: %s\t类型: %s\t值: %v\n", i+1, name, colTypes[i], val))
+	}
+	return nil
 }
