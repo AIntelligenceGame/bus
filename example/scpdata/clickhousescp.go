@@ -28,7 +28,7 @@ var (
 	isSrcDistributed bool
 	isDstDistributed bool
 	clusterName      string
-	ignoreFields     []string // 新增：忽略字段
+	ignoreFields     []string
 )
 
 func init() {
@@ -42,14 +42,12 @@ func init() {
 	flag.BoolVar(&isSrcDistributed, "is-src-distributed", false, "源表是否为分布式表")
 	flag.BoolVar(&isDstDistributed, "is-dst-distributed", false, "目标表是否为分布式表")
 	flag.StringVar(&clusterName, "cluster-name", "", "ClickHouse集群名（分布式表rename时用）")
-	// 新增：支持多次指定 --ignore-field
 	flag.Func("ignore-field", "忽略校验和插入的字段，可指定多次", func(s string) error {
 		ignoreFields = append(ignoreFields, s)
 		return nil
 	})
 }
 
-// 判断字段名是否在忽略列表
 func isIgnoredField(name string) bool {
 	for _, f := range ignoreFields {
 		if f == name {
@@ -63,6 +61,17 @@ type columnInfo struct {
 	Name string
 	Type string
 }
+
+type migrationResult struct {
+	SegmentStart time.Time
+	SegmentEnd   time.Time
+	RowsRead     int
+	RowsWritten  int
+	Duration     time.Duration
+	Error        error
+}
+
+var doneSegmentMu sync.Mutex
 
 func main() {
 	flag.Parse()
@@ -110,12 +119,12 @@ func main() {
 	}
 	defer logFile.Close()
 
-	// 迁移前字段顺序/类型/值映射日志校验
 	err = logFirstRowFieldMapping(srcDB, srcTable, columns, logFile)
 	if err != nil {
 		log.Fatalf("迁移前字段映射校验失败: %v", err)
 	}
 
+	// 1. 全量+增量迁移 srcTable → dstTable
 	var wg sync.WaitGroup
 	segmentChan := make(chan time.Time, parallelism*2)
 	results := make(chan migrationResult, parallelism*2)
@@ -157,25 +166,22 @@ func main() {
 		maxTime = newMax
 	}
 
-	// rename 前获取目标表最大时间戳，作为兜底增量的起点
-	var maxTimeInDstTableBeforeRename time.Time
-	row2 := dstDB.Raw(fmt.Sprintf("SELECT max(%s) FROM %s", timeField, dstTable)).Row()
-	if err := row2.Scan(&maxTimeInDstTableBeforeRename); err != nil {
-		log.Fatalf("RENAME 前获取目标表最大时间戳失败: %v", err)
-	}
-	log.Printf("RENAME 前目标表最大时间戳: %s", maxTimeInDstTableBeforeRename.Format("2006-01-02 15:04:05"))
-
-	// rename 表
-	err = renameTables(srcDB, dstDB, srcTable, dstTable)
+	// 2. rename 源表为 _bak
+	err = renameSrcTableToBak(srcDB, srcTable)
 	if err != nil {
-		log.Fatalf("重命名表失败: %v", err)
+		log.Fatalf("重命名源表失败: %v", err)
 	}
-	log.Println("迁移和重命名完成")
-
-	// RENAME 后用 rename 前目标表最大时间戳作为兜底增量起点
 	bakTable := srcTable + "_bak"
-	log.Printf("重命名后检查 _bak 表是否有新数据写入，时间字段大于等于 %s", maxTimeInDstTableBeforeRename.Format("2006-01-02 15:04:05"))
-	// 1. 查询 _bak 表 timeField > maxTimeInDstTableBeforeRename 的所有数据，全部补差
+
+	// 3. 获取 _bak 最大时间戳
+	var maxTimeInSrcTableBeforeRename time.Time
+	rowBak := srcDB.Raw(fmt.Sprintf("SELECT max(%s) FROM %s", timeField, bakTable)).Row()
+	if err := rowBak.Scan(&maxTimeInSrcTableBeforeRename); err != nil {
+		log.Fatalf("获取 _bak 表最大时间戳失败: %v", err)
+	}
+	log.Printf("_bak 表最大时间戳: %s", maxTimeInSrcTableBeforeRename.Format("2006-01-02 15:04:05"))
+
+	// 4. 补差：对比 _bak 和 dstTable，将 _bak 新数据补到 dstTable
 	bakCols, err := getTableColumns(srcDB, bakTable)
 	if err != nil {
 		log.Fatalf("获取 _bak 表结构失败: %v", err)
@@ -188,25 +194,23 @@ func main() {
 		colNames = append(colNames, "`"+c.Name+"`")
 	}
 	colList := strings.Join(colNames, ",")
-	// 2. 查询 _bak 表 timeField = maxTimeInDstTableBeforeRename 的所有数据
+	// 查询 _bak 表 timeField = maxTimeInSrcTableBeforeRename 的所有数据
 	var bakRowsAtMax []map[string]interface{}
-	err = srcDB.Table(bakTable).Select(colList).Where(fmt.Sprintf("%s = ?", timeField), maxTimeInDstTableBeforeRename).Find(&bakRowsAtMax).Error
+	err = srcDB.Table(bakTable).Select(colList).Where(fmt.Sprintf("%s = ?", timeField), maxTimeInSrcTableBeforeRename).Find(&bakRowsAtMax).Error
 	if err != nil {
-		log.Fatalf("_bak 表 timeField=maxTimeInDstTableBeforeRename 查询失败: %v", err)
+		log.Fatalf("_bak 表 timeField=maxTimeInSrcTableBeforeRename 查询失败: %v", err)
 	}
-	// 3. 查询目标表 timeField = maxTimeInDstTableBeforeRename 的所有数据
+	// 查询目标表（dstTable） timeField = maxTimeInSrcTableBeforeRename 的所有数据
 	var dstRowsAtMax []map[string]interface{}
-	err = srcDB.Table(srcTable).Select(colList).Where(fmt.Sprintf("%s = ?", timeField), maxTimeInDstTableBeforeRename).Find(&dstRowsAtMax).Error
+	err = dstDB.Table(dstTable).Select(colList).Where(fmt.Sprintf("%s = ?", timeField), maxTimeInSrcTableBeforeRename).Find(&dstRowsAtMax).Error
 	if err != nil {
-		log.Fatalf("目标表 timeField=maxTimeInDstTableBeforeRename 查询失败: %v", err)
+		log.Fatalf("目标表 timeField=maxTimeInSrcTableBeforeRename 查询失败: %v", err)
 	}
-	// 4. 构建目标表数据的哈希集合
 	dstRowSet := map[string]struct{}{}
 	for _, row := range dstRowsAtMax {
 		b, _ := json.Marshal(row)
 		dstRowSet[string(b)] = struct{}{}
 	}
-	// 5. 只插入目标表没有的那部分
 	var needInsertRows []map[string]interface{}
 	for _, row := range bakRowsAtMax {
 		b, _ := json.Marshal(row)
@@ -215,27 +219,27 @@ func main() {
 		}
 	}
 	if len(needInsertRows) > 0 {
-		log.Printf("_bak 表 timeField=%s 需补差 %d 条", maxTimeInDstTableBeforeRename.Format("2006-01-02 15:04:05"), len(needInsertRows))
-		if err := dstDB.Table(srcTable).CreateInBatches(needInsertRows, 1000).Error; err != nil {
-			log.Fatalf("_bak 表 timeField=maxTimeInDstTableBeforeRename 补差写入失败: %v", err)
+		log.Printf("_bak 表 timeField=%s 需补差 %d 条", maxTimeInSrcTableBeforeRename.Format("2006-01-02 15:04:05"), len(needInsertRows))
+		if err := dstDB.Table(dstTable).CreateInBatches(needInsertRows, 1000).Error; err != nil {
+			log.Fatalf("_bak 表 timeField=maxTimeInSrcTableBeforeRename 补差写入失败: %v", err)
 		}
-		log.Printf("_bak 表 timeField=maxTimeInDstTableBeforeRename 补差写入完成")
+		log.Printf("_bak 表 timeField=maxTimeInSrcTableBeforeRename 补差写入完成")
 	} else {
-		log.Printf("_bak 表 timeField=%s 无需补差", maxTimeInDstTableBeforeRename.Format("2006-01-02 15:04:05"))
+		log.Printf("_bak 表 timeField=%s 无需补差", maxTimeInSrcTableBeforeRename.Format("2006-01-02 15:04:05"))
 	}
-	// 6. 处理 _bak 表 timeField > maxTimeInDstTableBeforeRename 的数据（批量迁移）
-	bakMin, bakMax, err := getTimeRange(srcDB, bakTable, timeField, maxTimeInDstTableBeforeRename.Add(time.Nanosecond).Format("2006-01-02 15:04:05"))
+	// 处理 _bak 表 timeField > maxTimeInSrcTableBeforeRename 的数据（批量迁移）
+	bakMin, bakMax, err := getTimeRange(srcDB, bakTable, timeField, maxTimeInSrcTableBeforeRename.Add(time.Nanosecond).Format("2006-01-02 15:04:05"))
 	if err != nil {
 		log.Fatalf("_bak 表兜底增量时间范围获取失败: %v", err)
 	}
-	if !bakMin.IsZero() && bakMax.After(maxTimeInDstTableBeforeRename) {
+	if !bakMin.IsZero() && bakMax.After(maxTimeInSrcTableBeforeRename) {
 		log.Printf("_bak 表有新数据: %s ~ %s，开始兜底增量迁移", bakMin, bakMax)
 		var bakWg sync.WaitGroup
 		bakChan := make(chan time.Time, parallelism*2)
 		bakResults := make(chan migrationResult, parallelism*2)
 		for i := 0; i < parallelism; i++ {
 			bakWg.Add(1)
-			go worker(srcDB, dstDB, bakCols, bakChan, bakResults, &bakWg, bakTable, srcTable, timeField, nil)
+			go worker(srcDB, dstDB, bakCols, bakChan, bakResults, &bakWg, bakTable, dstTable, timeField, nil)
 		}
 		go processResults(bakResults, logFile, bakMin, bakMax)
 		generateHourlySegmentsWithSkip(bakMin, bakMax, bakChan, nil)
@@ -246,6 +250,13 @@ func main() {
 	} else {
 		log.Printf("_bak 表无新数据，无需兜底增量")
 	}
+
+	// 5. rename 目标表为 srcTable
+	err = renameDstTableToSrc(dstDB, dstTable, srcTable)
+	if err != nil {
+		log.Fatalf("重命名目标表失败: %v", err)
+	}
+	log.Println("最终切换完成，迁移流程结束")
 }
 
 // GORM版本的表结构获取
@@ -326,16 +337,6 @@ func generateHourlySegmentsWithSkip(minTime, maxTime time.Time, segmentChan chan
 	}
 }
 
-type migrationResult struct {
-	SegmentStart time.Time
-	SegmentEnd   time.Time
-	RowsRead     int
-	RowsWritten  int
-	Duration     time.Duration
-	Error        error
-}
-
-// GORM版本的worker
 func worker(srcDB, dstDB *gorm.DB, columns []columnInfo, segmentChan <-chan time.Time, results chan<- migrationResult, wg *sync.WaitGroup, srcTable, dstTable, timeField string, doneSegments map[string]bool) {
 	defer wg.Done()
 	colNames := []string{}
@@ -372,11 +373,13 @@ func worker(srcDB, dstDB *gorm.DB, columns []columnInfo, segmentChan <-chan time
 	}
 }
 
-// GORM版本的migrateSegment
 func migrateSegment(srcDB, dstDB *gorm.DB, columns []columnInfo, colIndexes []int, srcTable, dstTable, timeField string, startHour, endHour time.Time, colList, placeholders string) (int, int, error) {
-	// 用明确字段名替换 SELECT *
+	// 用明确字段名替换 SELECT *，并过滤 ignoreFields
 	fieldNames := []string{}
 	for _, c := range columns {
+		if isIgnoredField(c.Name) {
+			continue
+		}
 		fieldNames = append(fieldNames, c.Name)
 	}
 	selectFields := strings.Join(fieldNames, ",")
@@ -542,6 +545,39 @@ func renameTables(srcDB, dstDB *gorm.DB, srcTable, dstTable string) error {
 	return nil
 }
 
+// 新增：rename 源表为 _bak
+func renameSrcTableToBak(srcDB *gorm.DB, srcTable string) error {
+	bakTable := srcTable + "_bak"
+	var renameSQL string
+	if isSrcDistributed && clusterName != "" {
+		renameSQL = fmt.Sprintf("RENAME TABLE %s TO %s ON CLUSTER %s", srcTable, bakTable, clusterName)
+	} else if isSrcDistributed || clusterName != "" {
+		return fmt.Errorf("分布式表rename必须指定集群名")
+	} else {
+		renameSQL = fmt.Sprintf("RENAME TABLE %s TO %s", srcTable, bakTable)
+	}
+	if err := srcDB.Exec(renameSQL).Error; err != nil {
+		return fmt.Errorf("重命名源表失败: %w", err)
+	}
+	return nil
+}
+
+// 新增：rename 目标表为 srcTable
+func renameDstTableToSrc(dstDB *gorm.DB, dstTable, srcTable string) error {
+	var renameSQL string
+	if isDstDistributed && clusterName != "" {
+		renameSQL = fmt.Sprintf("RENAME TABLE %s TO %s ON CLUSTER %s", dstTable, srcTable, clusterName)
+	} else if isDstDistributed || clusterName != "" {
+		return fmt.Errorf("分布式表rename必须指定集群名")
+	} else {
+		renameSQL = fmt.Sprintf("RENAME TABLE %s TO %s", dstTable, srcTable)
+	}
+	if err := dstDB.Exec(renameSQL).Error; err != nil {
+		return fmt.Errorf("重命名目标表失败: %w", err)
+	}
+	return nil
+}
+
 // 断点续传记录
 func loadDoneSegments() map[string]bool {
 	done := map[string]bool{}
@@ -558,6 +594,8 @@ func loadDoneSegments() map[string]bool {
 }
 
 func saveDoneSegment(seg string) {
+	doneSegmentMu.Lock()
+	defer doneSegmentMu.Unlock()
 	f, err := os.OpenFile("done_segments.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("记录断点失败: %v", err)
