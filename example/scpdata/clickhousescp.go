@@ -29,6 +29,7 @@ var (
 	isDstDistributed bool
 	clusterName      string
 	ignoreFields     []string
+	doneSegmentsFile string // 新增：done_segments 文件名
 )
 
 func init() {
@@ -46,6 +47,7 @@ func init() {
 		ignoreFields = append(ignoreFields, s)
 		return nil
 	})
+	flag.StringVar(&doneSegmentsFile, "done-segments", "", "断点续传文件名，留空则自动生成")
 }
 
 func isIgnoredField(name string) bool {
@@ -77,6 +79,10 @@ func main() {
 	flag.Parse()
 	if srcTable == "" || dstTable == "" || timeField == "" {
 		log.Fatal("src-table、dst-table、time-field 参数必填")
+	}
+	// 动态生成默认 doneSegmentsFile
+	if doneSegmentsFile == "" {
+		doneSegmentsFile = fmt.Sprintf("done_segments_%s_to_%s.txt", srcTable, dstTable)
 	}
 	fmt.Println("srcDSN:", srcDSN)
 	fmt.Println("dstDSN:", dstDSN)
@@ -128,7 +134,7 @@ func main() {
 	var wg sync.WaitGroup
 	segmentChan := make(chan time.Time, parallelism*2)
 	results := make(chan migrationResult, parallelism*2)
-	doneSegments := loadDoneSegments()
+	doneSegments := loadDoneSegments(doneSegmentsFile)
 	for i := 0; i < parallelism; i++ {
 		wg.Add(1)
 		go worker(srcDB, dstDB, columns, segmentChan, results, &wg, srcTable, dstTable, timeField, doneSegments)
@@ -153,7 +159,7 @@ func main() {
 		var incWg sync.WaitGroup
 		incChan := make(chan time.Time, parallelism*2)
 		incResults := make(chan migrationResult, parallelism*2)
-		doneSegments = loadDoneSegments()
+		doneSegments = loadDoneSegments(doneSegmentsFile)
 		for i := 0; i < parallelism; i++ {
 			incWg.Add(1)
 			go worker(srcDB, dstDB, columns, incChan, incResults, &incWg, srcTable, dstTable, timeField, doneSegments)
@@ -257,6 +263,52 @@ func main() {
 		log.Fatalf("重命名目标表失败: %v", err)
 	}
 	log.Println("最终切换完成，迁移流程结束")
+
+	// 迁移完成后重命名 done_segments.txt，避免下次任务误用
+	err = renameDoneSegmentsFile(doneSegmentsFile)
+	if err != nil {
+		log.Printf("重命名 %s 失败: %v", doneSegmentsFile, err)
+	} else {
+		log.Printf("%s 已重命名，避免下次任务误用", doneSegmentsFile)
+	}
+}
+
+// 断点续传记录
+func loadDoneSegments(filename string) map[string]bool {
+	done := map[string]bool{}
+	f, err := os.Open(filename)
+	if err != nil {
+		return done
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		done[scanner.Text()] = true
+	}
+	return done
+}
+
+func saveDoneSegment(seg string) {
+	doneSegmentMu.Lock()
+	defer doneSegmentMu.Unlock()
+	f, err := os.OpenFile(doneSegmentsFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Printf("记录断点失败: %v", err)
+		return
+	}
+	defer f.Close()
+	f.WriteString(seg + "\n")
+}
+
+// 迁移完成后重命名 done_segments 文件，后缀为当前时间戳，保证唯一
+func renameDoneSegmentsFile(filename string) error {
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		return nil // 文件不存在无需处理
+	}
+	timestamp := time.Now().Format("20060102_150405")
+	base := strings.TrimSuffix(filename, ".txt")
+	newName := fmt.Sprintf("%s_%s.txt", base, timestamp)
+	return os.Rename(filename, newName)
 }
 
 // GORM版本的表结构获取
@@ -518,33 +570,6 @@ func compareTableColumns(srcDB, dstDB *gorm.DB, srcTable, dstTable string) error
 	return nil
 }
 
-// GORM版本的rename
-func renameTables(srcDB, dstDB *gorm.DB, srcTable, dstTable string) error {
-	bakTable := srcTable + "_bak"
-	var renameSrc, renameDst string
-	if isSrcDistributed && clusterName != "" {
-		renameSrc = fmt.Sprintf("RENAME TABLE %s TO %s ON CLUSTER %s", srcTable, bakTable, clusterName)
-	} else if isSrcDistributed || clusterName != "" {
-		return fmt.Errorf("分布式表rename必须指定集群名")
-	} else {
-		renameSrc = fmt.Sprintf("RENAME TABLE %s TO %s", srcTable, bakTable)
-	}
-	if isDstDistributed && clusterName != "" {
-		renameDst = fmt.Sprintf("RENAME TABLE %s TO %s ON CLUSTER %s", dstTable, srcTable, clusterName)
-	} else if isDstDistributed || clusterName != "" {
-		return fmt.Errorf("分布式表rename必须指定集群名")
-	} else {
-		renameDst = fmt.Sprintf("RENAME TABLE %s TO %s", dstTable, srcTable)
-	}
-	if err := srcDB.Exec(renameSrc).Error; err != nil {
-		return fmt.Errorf("重命名源表失败: %w", err)
-	}
-	if err := dstDB.Exec(renameDst).Error; err != nil {
-		return fmt.Errorf("重命名目标表失败: %w", err)
-	}
-	return nil
-}
-
 // 新增：rename 源表为 _bak
 func renameSrcTableToBak(srcDB *gorm.DB, srcTable string) error {
 	bakTable := srcTable + "_bak"
@@ -576,33 +601,6 @@ func renameDstTableToSrc(dstDB *gorm.DB, dstTable, srcTable string) error {
 		return fmt.Errorf("重命名目标表失败: %w", err)
 	}
 	return nil
-}
-
-// 断点续传记录
-func loadDoneSegments() map[string]bool {
-	done := map[string]bool{}
-	f, err := os.Open("done_segments.txt")
-	if err != nil {
-		return done
-	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		done[scanner.Text()] = true
-	}
-	return done
-}
-
-func saveDoneSegment(seg string) {
-	doneSegmentMu.Lock()
-	defer doneSegmentMu.Unlock()
-	f, err := os.OpenFile("done_segments.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Printf("记录断点失败: %v", err)
-		return
-	}
-	defer f.Close()
-	f.WriteString(seg + "\n")
 }
 
 // 迁移前抽取一条数据，按迁移字段顺序和拼接方式，打印字段名、类型、值，写入日志
