@@ -99,6 +99,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("获取时间范围失败: %v", err)
 	}
+	if minTime.IsZero() || maxTime.IsZero() {
+		log.Println("数据源无数据，任务终止")
+		return
+	}
 
 	logFile, err := os.Create("log.json")
 	if err != nil {
