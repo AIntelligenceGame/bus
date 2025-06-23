@@ -578,8 +578,6 @@ func renameSrcTableToBak(srcDB *gorm.DB, srcTable string) error {
 	var renameSQL string
 	if isSrcDistributed && clusterName != "" {
 		renameSQL = fmt.Sprintf("RENAME TABLE %s TO %s ON CLUSTER %s", srcTable, bakTable, clusterName)
-	} else if isSrcDistributed || clusterName != "" {
-		return fmt.Errorf("分布式表rename必须指定集群名")
 	} else {
 		renameSQL = fmt.Sprintf("RENAME TABLE %s TO %s", srcTable, bakTable)
 	}
@@ -594,8 +592,6 @@ func renameDstTableToSrc(dstDB *gorm.DB, dstTable, srcTable string) error {
 	var renameSQL string
 	if isDstDistributed && clusterName != "" {
 		renameSQL = fmt.Sprintf("RENAME TABLE %s TO %s ON CLUSTER %s", dstTable, srcTable, clusterName)
-	} else if isDstDistributed || clusterName != "" {
-		return fmt.Errorf("分布式表rename必须指定集群名")
 	} else {
 		renameSQL = fmt.Sprintf("RENAME TABLE %s TO %s", dstTable, srcTable)
 	}
