@@ -198,9 +198,15 @@ func main() {
 		if isIgnoredField(c.Name) {
 			continue
 		}
-		colNames = append(colNames, "`"+c.Name+"`")
+		colNames = append(colNames, c.Name) // 不带反引号
 	}
-	colList := strings.Join(colNames, ",")
+	colList := ""
+	for i, name := range colNames {
+		if i > 0 {
+			colList += ","
+		}
+		colList += "`" + name + "`"
+	}
 	// 查询 _bak 表 timeField = maxTimeInSrcTableBeforeRename 的所有数据
 	var bakRowsAtMax []map[string]interface{}
 	err = srcDB.Table(bakTable).Select(colList).Where(fmt.Sprintf("%s = ?", timeField), maxTimeInSrcTableBeforeRename).Find(&bakRowsAtMax).Error
@@ -213,15 +219,22 @@ func main() {
 	if err != nil {
 		log.Fatalf("目标表 timeField=maxTimeInSrcTableBeforeRename 查询失败: %v", err)
 	}
+	// 用字段顺序拼接字符串做key
+	rowToKey := func(row map[string]interface{}, colNames []string) string {
+		var sb strings.Builder
+		for _, col := range colNames {
+			v := row[col]
+			sb.WriteString(fmt.Sprintf("%v|", v))
+		}
+		return sb.String()
+	}
 	dstRowSet := map[string]struct{}{}
 	for _, row := range dstRowsAtMax {
-		b, _ := json.Marshal(row)
-		dstRowSet[string(b)] = struct{}{}
+		dstRowSet[rowToKey(row, colNames)] = struct{}{}
 	}
 	var needInsertRows []map[string]interface{}
 	for _, row := range bakRowsAtMax {
-		b, _ := json.Marshal(row)
-		if _, exists := dstRowSet[string(b)]; !exists {
+		if _, exists := dstRowSet[rowToKey(row, colNames)]; !exists {
 			needInsertRows = append(needInsertRows, row)
 		}
 	}
