@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -219,22 +220,36 @@ func main() {
 	if err != nil {
 		log.Fatalf("目标表 timeField=maxTimeInSrcTableBeforeRename 查询失败: %v", err)
 	}
-	// 用字段顺序拼接字符串做key
-	rowToKey := func(row map[string]interface{}, colNames []string) string {
+	// 对 colNames 做排序，保证字段顺序一致性
+	sortedColNames := make([]string, len(colNames))
+	copy(sortedColNames, colNames)
+	sort.Strings(sortedColNames)
+	// 用排序后的字段名拼接字符串做key，保证顺序无关
+	rowToKey := func(row map[string]interface{}) string {
 		var sb strings.Builder
-		for _, col := range colNames {
+		for _, col := range sortedColNames {
 			v := row[col]
-			sb.WriteString(fmt.Sprintf("%v|", v))
+			switch val := v.(type) {
+			case time.Time:
+				sb.WriteString(val.UTC().Format("2006-01-02T15:04:05.000Z"))
+			case float64:
+				sb.WriteString(fmt.Sprintf("%.8f", val))
+			case float32:
+				sb.WriteString(fmt.Sprintf("%.8f", val))
+			default:
+				sb.WriteString(fmt.Sprintf("%v", v))
+			}
+			sb.WriteString("|")
 		}
 		return sb.String()
 	}
 	dstRowSet := map[string]struct{}{}
 	for _, row := range dstRowsAtMax {
-		dstRowSet[rowToKey(row, colNames)] = struct{}{}
+		dstRowSet[rowToKey(row)] = struct{}{}
 	}
 	var needInsertRows []map[string]interface{}
 	for _, row := range bakRowsAtMax {
-		if _, exists := dstRowSet[rowToKey(row, colNames)]; !exists {
+		if _, exists := dstRowSet[rowToKey(row)]; !exists {
 			needInsertRows = append(needInsertRows, row)
 		}
 	}
