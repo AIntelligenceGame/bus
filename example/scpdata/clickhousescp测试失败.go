@@ -8,10 +8,11 @@ import (
 	"log"
 	"os"
 	"regexp"
-	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"reflect"
 
 	"gorm.io/driver/clickhouse"
 	"gorm.io/gorm"
@@ -220,37 +221,18 @@ func main() {
 	if err != nil {
 		log.Fatalf("目标表 timeField=maxTimeInSrcTableBeforeRename 查询失败: %v", err)
 	}
-	// 对 colNames 做排序，保证字段顺序一致性
-	sortedColNames := make([]string, len(colNames))
-	copy(sortedColNames, colNames)
-	sort.Strings(sortedColNames)
-	// 用排序后的字段名拼接字符串做key，保证顺序无关
-	rowToKey := func(row map[string]interface{}) string {
-		var sb strings.Builder
-		for _, col := range sortedColNames {
-			v := row[col]
-			switch val := v.(type) {
-			case time.Time:
-				sb.WriteString(val.UTC().Format("2006-01-02T15:04:05.000Z"))
-			case float64:
-				sb.WriteString(fmt.Sprintf("%.8f", val))
-			case float32:
-				sb.WriteString(fmt.Sprintf("%.8f", val))
-			default:
-				sb.WriteString(fmt.Sprintf("%v", v))
-			}
-			sb.WriteString("|")
-		}
-		return sb.String()
-	}
-	dstRowSet := map[string]struct{}{}
-	for _, row := range dstRowsAtMax {
-		dstRowSet[rowToKey(row)] = struct{}{}
-	}
+	// 用 reflect.DeepEqual 做全量行对比
 	var needInsertRows []map[string]interface{}
-	for _, row := range bakRowsAtMax {
-		if _, exists := dstRowSet[rowToKey(row)]; !exists {
-			needInsertRows = append(needInsertRows, row)
+	for _, bakRow := range bakRowsAtMax {
+		found := false
+		for _, dstRow := range dstRowsAtMax {
+			if mapsEqual(bakRow, dstRow) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			needInsertRows = append(needInsertRows, bakRow)
 		}
 	}
 	if len(needInsertRows) > 0 {
@@ -627,6 +609,49 @@ func renameDstTableToSrc(dstDB *gorm.DB, dstTable, srcTable string) error {
 		return fmt.Errorf("重命名目标表失败: %w", err)
 	}
 	return nil
+}
+
+// 顺序无关、支持嵌套的 map 等价比较
+func mapsEqual(a, b interface{}) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	aa, aok := a.(map[string]interface{})
+	bb, bok := b.(map[string]interface{})
+	if aok && bok {
+		if len(aa) != len(bb) {
+			return false
+		}
+		for k, av := range aa {
+			bv, ok := bb[k]
+			if !ok {
+				return false
+			}
+			if !mapsEqual(av, bv) {
+				return false
+			}
+		}
+		return true
+	}
+	// 支持 []interface{} 的顺序比较
+	aaArr, aArrOk := a.([]interface{})
+	bbArr, bArrOk := b.([]interface{})
+	if aArrOk && bArrOk {
+		if len(aaArr) != len(bbArr) {
+			return false
+		}
+		for i := range aaArr {
+			if !mapsEqual(aaArr[i], bbArr[i]) {
+				return false
+			}
+		}
+		return true
+	}
+	// 其它类型直接用 reflect.DeepEqual
+	return reflect.DeepEqual(a, b)
 }
 
 // 迁移前抽取一条数据，按迁移字段顺序和拼接方式，打印字段名、类型、值，写入日志

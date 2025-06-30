@@ -1,0 +1,20 @@
+[package]
+name = "datacp"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+clickhouse = { version = "0.9.3" }
+clickhouse-derive = "0.2"
+env_logger = "0.10"
+futures = "0.3"
+log = "0.4"
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+structopt = "0.3"
+tokio = { version = "1", features = ["full"] }

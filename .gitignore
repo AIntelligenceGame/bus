@@ -19,8 +19,10 @@ vendor/
 .idea/
 build/
 log/
+target/
 # Config yaml /json etc.
 configdevx.yaml
 config.yaml
+log.*
 
 # go mod file
