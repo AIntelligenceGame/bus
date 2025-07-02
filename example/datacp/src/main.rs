@@ -19,10 +19,10 @@ use std::time::Duration; // 用于设置超时的Duration类型
     name = "datacp",
     about = "ClickHouse数据迁移工具")]
 struct Opt {
-    /// 源ClickHouse DSN (支持tcp/http)
+    /// 源ClickHouse DSN (仅支持http)
     #[structopt(long, default_value = "http://default:@localhost:8123")]
     src_dsn: String, // 源库连接串
-    /// 目标ClickHouse DSN (支持tcp/http)
+    /// 目标ClickHouse DSN (仅支持http)
     #[structopt(long, default_value = "http://default:@localhost:8123")]
     dst_dsn: String, // 目标库连接串
     /// 源数据库名，必填

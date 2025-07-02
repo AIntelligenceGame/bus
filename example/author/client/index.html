@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>登录页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        .code {
+            margin-bottom: 20px;
+        }
+        .input-group {
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .qr-code {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>请输入动态码</h1>
+
+    <div class="code">
+        <input type="text" id="authCode" placeholder="请输入6位动态码">
+        <button onclick="verifyCode()">验证</button>
+    </div>
+
+    <div class="qr-code">
+        <h2>扫描二维码绑定 Google Authenticator</h2>
+        <div id="qrcode"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script>
+        // 生成二维码
+        new QRCode(document.getElementById("qrcode"), {
+            text: "otpauth://totp/123:user@example.com?algorithm=SHA1&digits=6&issuer=123&period=30&secret=MSVZG4GYOC73JZFVJTJ7YS4FOFA3M5JD",
+            width: 150,
+            height: 150,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
+
+        // 验证动态码
+        function verifyCode() {
+            const code = document.getElementById('authCode').value;
+            fetch('http://10.90.78.201:8080/verify', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ code: code })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('验证成功，进入 helloworld 页面');
+                    window.location.href = '/helloworld';
+                } else {
+                    alert('验证码错误，请重试');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+    </script>
+</body>
+</html>
