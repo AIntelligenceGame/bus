@@ -1,6 +1,6 @@
 module github.com/AIntelligenceGame/bus
 
-go 1.23.0
+go 1.24.0
 
 replace google.golang.org/genproto => google.golang.org/genproto v0.0.0-20250106144421-5f5ef82da422
 

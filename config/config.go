@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -24,7 +23,7 @@ var (
 	Work   *pool.WaitGroup
 )
 
-func init() {
+func Init() {
 	//构建一个命令行参数，指定配置文件位置
 	printPaser()
 	if err := LoadConfig(&Config); err != nil {
@@ -78,7 +77,7 @@ func LoadConfig(vc *ViperConfig) error {
 		case ".hcl":
 			tmp = "hcl"
 		default:
-			return errors.New(fmt.Sprintf("该文件 %v 后缀类型暂时不支持.", path))
+			return fmt.Errorf("该文件 %v 后缀类型暂时不支持.", path)
 		}
 		//...文件类型等待更新
 
