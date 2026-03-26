@@ -59,7 +59,9 @@ func InitLogger(config LoggerConfig) *zap.Logger {
 	if _, err := os.Stat(logDir); os.IsNotExist(err) {
 		// 如果目录不存在，使用当前工作目录
 		log.Println("dbhouse.crontab.log.print3", logDir)
+		log.Println("dbhouse.crontab.log.print3", err.Error())
 		zap.L().Info("dbhouse.crontab.log.print3", zap.String("获取当前工作目录,不存在创建失败", logDir))
+		zap.L().Info("dbhouse.crontab.log.print3", zap.String("获取当前工作目录,不存在创建失败", err.Error()))
 		logDir = "."
 	}
 	log.Println("获取当前工作目录4", logDir)
