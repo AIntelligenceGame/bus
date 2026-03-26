@@ -67,7 +67,7 @@ func InitLogger(config LoggerConfig) *zap.Logger {
 
 	// 创建日志文件路径，使用 'debug.log' 作为默认日志文件名
 	logFilePath := filepath.Join(logDir, "debug.log")
-	log.Println("获取当前工作目录5", logDir)
+	log.Println("获取当前工作目录5", logFilePath)
 	zap.L().Info("dbhouse.crontab.log.print5", zap.String("获取当前工作目录5", logFilePath))
 
 	// 配置日志轮转
