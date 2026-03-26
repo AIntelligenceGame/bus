@@ -64,18 +64,18 @@ func InitLogger(config LoggerConfig) *zap.Logger {
 	// 	zap.L().Info("dbhouse.crontab.log.print3", zap.String("获取当前工作目录,不存在创建失败", err.Error()))
 	// 	logDir = "."
 	// }
-	if _, err := os.Stat(logDir); os.IsNotExist(err) {
-		// 目录不存在，创建它
-		if err := os.MkdirAll(logDir, 0755); err != nil {
-			// 创建失败，记录错误并回退到当前目录
-			log.Println("dbhouse.crontab.log.print3", "failed to create directory", logDir, err.Error())
-			zap.L().Info("dbhouse.crontab.log.print3", zap.String("创建日志目录失败", logDir), zap.Error(err))
-			logDir = "."
-		} else {
-			log.Println("dbhouse.crontab.log.print3", "created directory", logDir)
-			zap.L().Info("dbhouse.crontab.log.print3", zap.String("创建日志目录成功", logDir))
-		}
-	}
+	// if _, err := os.Stat(logDir); os.IsNotExist(err) {
+	// 	// 目录不存在，创建它
+	// 	if err := os.MkdirAll(logDir, 0755); err != nil {
+	// 		// 创建失败，记录错误并回退到当前目录
+	// 		log.Println("dbhouse.crontab.log.print3", "failed to create directory", logDir, err.Error())
+	// 		zap.L().Info("dbhouse.crontab.log.print3", zap.String("创建日志目录失败", logDir), zap.Error(err))
+	// 		logDir = "."
+	// 	} else {
+	// 		log.Println("dbhouse.crontab.log.print3", "created directory", logDir)
+	// 		zap.L().Info("dbhouse.crontab.log.print3", zap.String("创建日志目录成功", logDir))
+	// 	}
+	// }
 
 	log.Println("获取当前工作目录4", logDir)
 	zap.L().Info("dbhouse.crontab.log.print4", zap.String("获取当前工作目录4", logDir))
