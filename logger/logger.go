@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -41,49 +40,8 @@ func InitLogger(config LoggerConfig) *zap.Logger {
 	}
 	// 获取环境变量 (例如: LOG_DIR 或 LOG_DIR222)
 	logDir := os.ExpandEnv("${" + config.EnvVar + "}")
-	zap.L().Info("dbhouse.crontab.log.print1", zap.String("获取当前工作目录1", logDir))
-	log.Println("dbhouse.crontab.log.print1", logDir)
-
-	// 如果环境变量为空，或者解析后的路径无效，则使用当前工作目录
-	if logDir == "" {
-		var err error
-		logDir, err = os.Getwd()
-		if err != nil {
-			log.Println("dbhouse.crontab.log.print2", logDir)
-			zap.L().Info("dbhouse.crontab.log.print2", zap.String("获取当前工作目录失败", err.Error()))
-			return nil
-		}
-	}
-
-	// 检查目录是否存在，如果不存在则使用默认路径 'debug.log'
-	// if _, err := os.Stat(logDir); os.IsNotExist(err) {
-	// 	// 如果目录不存在，使用当前工作目录
-	// 	log.Println("dbhouse.crontab.log.print3", logDir)
-	// 	log.Println("dbhouse.crontab.log.print3", err.Error())
-	// 	zap.L().Info("dbhouse.crontab.log.print3", zap.String("获取当前工作目录,不存在创建失败", logDir))
-	// 	zap.L().Info("dbhouse.crontab.log.print3", zap.String("获取当前工作目录,不存在创建失败", err.Error()))
-	// 	logDir = "."
-	// }
-	// if _, err := os.Stat(logDir); os.IsNotExist(err) {
-	// 	// 目录不存在，创建它
-	// 	if err := os.MkdirAll(logDir, 0755); err != nil {
-	// 		// 创建失败，记录错误并回退到当前目录
-	// 		log.Println("dbhouse.crontab.log.print3", "failed to create directory", logDir, err.Error())
-	// 		zap.L().Info("dbhouse.crontab.log.print3", zap.String("创建日志目录失败", logDir), zap.Error(err))
-	// 		logDir = "."
-	// 	} else {
-	// 		log.Println("dbhouse.crontab.log.print3", "created directory", logDir)
-	// 		zap.L().Info("dbhouse.crontab.log.print3", zap.String("创建日志目录成功", logDir))
-	// 	}
-	// }
-
-	log.Println("获取当前工作目录4", logDir)
-	zap.L().Info("dbhouse.crontab.log.print4", zap.String("获取当前工作目录4", logDir))
-
 	// 创建日志文件路径，使用 'debug.log' 作为默认日志文件名
 	logFilePath := filepath.Join(logDir, "debug.log")
-	log.Println("获取当前工作目录5", logFilePath)
-	zap.L().Info("dbhouse.crontab.log.print5", zap.String("获取当前工作目录5", logFilePath))
 
 	// 配置日志轮转
 	lumberjackLogger := &lumberjack.Logger{
@@ -118,6 +76,8 @@ func InitLogger(config LoggerConfig) *zap.Logger {
 
 	// 替换全局日志记录器
 	zap.ReplaceGlobals(logger)
+	zap.L().Info("dbhouse.crontab.log.print2", zap.String("获取当前工作目录", logDir))
+	zap.L().Info("dbhouse.crontab.log.print2", zap.String("获取当前工作目录", logFilePath))
 
 	return logger
 }
