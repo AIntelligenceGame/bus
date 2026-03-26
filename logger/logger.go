@@ -41,14 +41,14 @@ func InitLogger(config LoggerConfig) *zap.Logger {
 	}
 	// 获取环境变量 (例如: LOG_DIR 或 LOG_DIR222)
 	logDir := os.ExpandEnv("${" + config.EnvVar + "}")
-	zap.L().Info("dbhouse.crontab.log.print", zap.String("获取当前工作目录1", logDir))
+	zap.L().Info("dbhouse.crontab.log.print1", zap.String("获取当前工作目录1", logDir))
 
 	// 如果环境变量为空，或者解析后的路径无效，则使用当前工作目录
 	if logDir == "" {
 		var err error
 		logDir, err = os.Getwd()
 		if err != nil {
-			zap.L().Info("dbhouse.crontab.log.print", zap.String("获取当前工作目录失败", err.Error()))
+			zap.L().Info("dbhouse.crontab.log.print2", zap.String("获取当前工作目录失败", err.Error()))
 			return nil
 		}
 	}
@@ -56,15 +56,15 @@ func InitLogger(config LoggerConfig) *zap.Logger {
 	// 检查目录是否存在，如果不存在则使用默认路径 'debug.log'
 	if _, err := os.Stat(logDir); os.IsNotExist(err) {
 		// 如果目录不存在，使用当前工作目录
-		zap.L().Info("dbhouse.crontab.log.print", zap.String("获取当前工作目录,不存在创建失败", logDir))
+		zap.L().Info("dbhouse.crontab.log.print3", zap.String("获取当前工作目录,不存在创建失败", logDir))
 		logDir = "."
 	}
 	log.Println("获取当前工作目录2", logDir)
-	zap.L().Info("dbhouse.crontab.log.print", zap.String("获取当前工作目录2", logDir))
+	zap.L().Info("dbhouse.crontab.log.print4", zap.String("获取当前工作目录2", logDir))
 
 	// 创建日志文件路径，使用 'debug.log' 作为默认日志文件名
 	logFilePath := filepath.Join(logDir, "debug.log")
-	zap.L().Info("dbhouse.crontab.log.print", zap.String("获取当前工作目录3", logFilePath))
+	zap.L().Info("dbhouse.crontab.log.print5", zap.String("获取当前工作目录3", logFilePath))
 
 	// 配置日志轮转
 	lumberjackLogger := &lumberjack.Logger{
