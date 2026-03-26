@@ -4,8 +4,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
 	"strings"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 // MySQL 初始化连接信息对象
@@ -35,13 +36,13 @@ func Open(cnf Info) (*sql.DB, error) {
 	// 初始化超时参数值
 
 	if cnf.Timeout <= 0 {
-		cnf.Timeout = 3000
+		cnf.Timeout = 30000
 	}
 	if cnf.ReadTimeout <= 0 {
-		cnf.ReadTimeout = 3000
+		cnf.ReadTimeout = 60000
 	}
 	if cnf.WriteTimeout <= 0 {
-		cnf.WriteTimeout = 3000
+		cnf.WriteTimeout = 30000
 	}
 
 	//
