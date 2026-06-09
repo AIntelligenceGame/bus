@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -77,8 +78,9 @@ func InitLogger(config LoggerConfig) *zap.Logger {
 	// 替换全局日志记录器
 	zap.ReplaceGlobals(logger)
 	zap.L().Info("dbhouse.crontab.log.print2", zap.String("获取当前工作目录", logDir))
+	fmt.Println("dbhouse.crontab.log.print2", "获取当前工作目录", logDir)
 	zap.L().Info("dbhouse.crontab.log.print2", zap.String("获取当前工作目录", logFilePath))
-
+	fmt.Println("dbhouse.crontab.log.print2", "获取当前工作目录", logFilePath)
 	return logger
 }
 
