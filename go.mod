@@ -61,7 +61,6 @@ require (
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cloudflare/golz4 v0.0.0-20150217214814-ef862a3cdc58 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
-	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/deckarep/gosx-notifier v0.0.0-20180201035817-e127226297fb // indirect
 	github.com/dolthub/flatbuffers/v23 v23.3.3-dh.2 // indirect
 	github.com/dolthub/go-icu-regex v0.0.0-20230524105445-af7e7991c97e // indirect

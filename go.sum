@@ -432,8 +432,6 @@ github.com/cncf/xds/go v0.0.0-20240822171458-6449f94b4d59/go.mod h1:W+zGtBO5Y1Ig
 github.com/cockroachdb/datadriven v0.0.0-20190809214429-80d97fb3cbaa/go.mod h1:zn76sxSg3SzpJ0PPJaLDCu+Bu0Lg3sKTORVIj19EIF8=
 github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd/go.mod h1:sE/e/2PUdi/liOCUjSTXgM1o87ZssimdTWN964YiIeI=
 github.com/coreos/go-semver v0.2.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=
-github.com/coreos/go-semver v0.3.1 h1:yi21YpKnrx1gt5R+la8n5WgS0kCrsPp33dmEyHReZr4=
-github.com/coreos/go-semver v0.3.1/go.mod h1:irMmmIw/7yzSRPWryHsK7EYSg09caPQL03VsM8rvUec=
 github.com/coreos/go-systemd v0.0.0-20180511133405-39ca1b05acc7/go.mod h1:F5haX7vjVVG0kc13fIWeqUViNPyEJxv/OmvnBo0Yme4=
 github.com/coreos/pkg v0.0.0-20160727233714-3ac0863d7acf/go.mod h1:E3G3o1h8I7cfcXa63jLwjI0eiQQMgzzUDFVpN/nH/eA=
 github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d/go.mod h1:maD7wRr/U5Z6m/iR4s+kqSMx2CaBsrgA7czyZG/E6dU=
@@ -1024,16 +1022,12 @@ github.com/pierrec/lz4/v4 v4.1.21 h1:yOVMLb6qSIDP67pl/5F7RepeKYu/VmTyEXvuMI5d9mQ
 github.com/pierrec/lz4/v4 v4.1.21/go.mod h1:gZWDp/Ze/IJXGXf23ltt2EXimqmTUXEy0GFuRQyBid4=
 github.com/pingcap/errors v0.11.5-0.20260310054046-9c8b3586e4b2 h1:cLgCk5mwDG9lDH+dPK8TmEliTjyGJwwKN0qevWAl8IY=
 github.com/pingcap/errors v0.11.5-0.20260310054046-9c8b3586e4b2/go.mod h1:ktAJCA9lxrHHjVyVl2pKJFvzBnq2eZbb+CUOjBRPlXo=
-github.com/pingcap/failpoint v0.0.0-20260406204437-bbc9d102c19e h1:il8go9El5o10EyPmalSG6Lg3zu2rtkq7c2wbRwBmdwo=
-github.com/pingcap/failpoint v0.0.0-20260406204437-bbc9d102c19e/go.mod h1:jimwlLpI/XtwQdlZML15HS+j4rirvwZM0GLY07wwgOo=
 github.com/pingcap/failpoint v0.0.0-20260811232634-55ac33a48e3b h1:5qoDlNwsxDoWUkY0sMmsCcxs/Oi+UNCAI6x4ls9r2nA=
 github.com/pingcap/failpoint v0.0.0-20260811232634-55ac33a48e3b/go.mod h1:jimwlLpI/XtwQdlZML15HS+j4rirvwZM0GLY07wwgOo=
 github.com/pingcap/log v1.1.1-0.20260227082333-572e590d08f1 h1:A2bEfgSb7hLwR9mxDszgGKweF+xY9YoTDG+8RjdFjDE=
 github.com/pingcap/log v1.1.1-0.20260227082333-572e590d08f1/go.mod h1:pxfz2oJfAuhwrb3/rcLqD//GS/5gRP4gD022iP3cEO0=
 github.com/pingcap/tidb/pkg/parser v0.0.0-20241118164214-4f047be191be h1:t5EkCmZpxLCig5GQA0AZG47aqsuL5GTsJeeUD+Qfies=
 github.com/pingcap/tidb/pkg/parser v0.0.0-20241118164214-4f047be191be/go.mod h1:Hju1TEWZvrctQKbztTRwXH7rd41Yq0Pgmq4PrEKcq7o=
-github.com/pingcap/tidb/pkg/parser v0.0.0-20260908043155-f5cf8f633761 h1:YJ1ZqrH0FOphMQAkCWHyhdl63ftUNPrJIvAUvew31EQ=
-github.com/pingcap/tidb/pkg/parser v0.0.0-20260908043155-f5cf8f633761/go.mod h1:LhMzwDJeiwB/9+PJK0O1ppJJpodIQz5A87v5oDOWMJw=
 github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e/go.mod h1:pJLUxLENpZxwdsKMEsNbx1VGcRFpLqf3715MtcvvzbA=
 github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
