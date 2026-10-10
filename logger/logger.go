@@ -59,8 +59,12 @@ func InitLogger(config LoggerConfig) *zap.Logger {
 
 	// 设置日志输出配置
 	encoderConfig := zap.NewProductionEncoderConfig()
-	encoderConfig.TimeKey = "time"
-	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder // 设置时间戳格式
+	encoderConfig.TimeKey = "timestamp"
+	encoderConfig.MessageKey = "message"
+	// 自定义时间格式: 2019-07-12 10:24:38:035
+	encoderConfig.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+		enc.AppendString(t.Format("2006-01-02 15:04:05.000"))
+	}
 	encoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
 	// encoderConfig.EncodeCaller = zapcore.FullCallerEncoder  //显示完整路径
 	encoderConfig.EncodeCaller = zapcore.ShortCallerEncoder //仅显示文件名和行号
