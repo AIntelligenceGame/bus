@@ -16,7 +16,7 @@ BuildGoWixJson := $(MakeWixMainDoGo)
 
 ExeFile := $(ProjectPath)/$(BuildDir)/$(Name).exe
 BuildGoMainFile := $(ProjectPath)/$(MainDoGo)
-MakeMsi := makemsi.exe make --msi
+MakeMsi := go install github.com/mh-cbon/go-msi/cmd/go-msi@latest && go-msi make --msi
 MakeDotMsi := $(ProjectPath)/$(BuildDir)/$(Svc).msi
 #go env config
 GoBuild := go build -o
