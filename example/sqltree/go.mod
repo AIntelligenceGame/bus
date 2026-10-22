@@ -2,14 +2,16 @@ module sqltree
 
 go 1.26.4
 
-require github.com/dolthub/go-mysql-server v0.20.0
+require (
+	github.com/dolthub/go-mysql-server v0.20.0
+	github.com/dolthub/vitess v0.0.0-20250512224608-8fb9c6ea092c
+)
 
 require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/dolthub/flatbuffers/v23 v23.3.3-dh.2 // indirect
 	github.com/dolthub/go-icu-regex v0.0.0-20250327004329-6799764f2dad // indirect
 	github.com/dolthub/jsonpath v0.0.2-0.20240227200619-19675ab05c71 // indirect
-	github.com/dolthub/vitess v0.0.0-20250512224608-8fb9c6ea092c // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect

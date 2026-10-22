@@ -30,6 +30,8 @@ type SelectDetails struct {
 	Having        string   `json:"having,omitempty"`
 	OrderBy       []string `json:"order_by,omitempty"`
 	Limit         int      `json:"limit,omitempty"`
+	CTEs          []CTEInfo `json:"ctes,omitempty"`
+	SetOp         string   `json:"set_op,omitempty"`
 }
 
 // UpdateDetails represents the details of an UPDATE statement.
@@ -119,12 +121,68 @@ func main() {
 		{"WITH RECURSIVE CTE", "WITH RECURSIVE cte AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM cte WHERE n < 5) SELECT * FROM cte"},
 		{"WITH CTE multiple", "WITH cte1 AS (SELECT id, name FROM t1), cte2 AS (SELECT id, value FROM t2) SELECT c1.id, c1.name, c2.value FROM cte1 c1 JOIN cte2 c2 ON c1.id = c2.id"},
 		{"WITH CTE in subquery", "SELECT * FROM (WITH cte AS (SELECT id FROM t1) SELECT * FROM cte) AS sub"},
+
+		// DDL - 表结构
+		{"CREATE TABLE", "CREATE TABLE t3 (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(64) NOT NULL DEFAULT 'x' COMMENT '名称', value DECIMAL(10,2) UNSIGNED, created_at DATETIME, KEY idx_name (name), UNIQUE KEY uk_val (value), CONSTRAINT fk_t3 FOREIGN KEY (id) REFERENCES t1 (id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='测试表'"},
+		{"CREATE TABLE IF NOT EXISTS", "CREATE TABLE IF NOT EXISTS t4 (id INT PRIMARY KEY)"},
+		{"CREATE TABLE AS SELECT", "CREATE TABLE t5 AS SELECT id, name FROM t1"},
+		{"CREATE TABLE LIKE", "CREATE TABLE t6 LIKE t1"},
+		{"ALTER TABLE add column", "ALTER TABLE t1 ADD COLUMN extra INT NOT NULL DEFAULT 0"},
+		{"ALTER TABLE drop column", "ALTER TABLE t1 DROP COLUMN extra"},
+		{"ALTER TABLE modify column", "ALTER TABLE t1 MODIFY COLUMN name VARCHAR(128)"},
+		{"ALTER TABLE rename column", "ALTER TABLE t1 RENAME COLUMN name TO nickname"},
+		{"ALTER TABLE multi actions", "ALTER TABLE t1 ADD COLUMN a INT, DROP COLUMN b, MODIFY COLUMN c VARCHAR(10)"},
+		{"ALTER TABLE add index", "ALTER TABLE t1 ADD INDEX idx_status (status)"},
+		{"ALTER TABLE add foreign key", "ALTER TABLE t1 ADD CONSTRAINT fk_1 FOREIGN KEY (id) REFERENCES t2 (id)"},
+		{"DROP TABLE", "DROP TABLE IF EXISTS t3, t4"},
+		{"RENAME TABLE", "RENAME TABLE t5 TO t7, t6 TO t8"},
+		{"TRUNCATE TABLE", "TRUNCATE TABLE t7"},
+		{"CREATE INDEX", "CREATE UNIQUE INDEX idx_u ON t1 (id, status)"},
+		{"DROP INDEX", "DROP INDEX idx_u ON t1"},
+
+		// 视图
+		{"CREATE VIEW", "CREATE VIEW v1 AS SELECT id, name FROM t1 WHERE status = 1"},
+		{"CREATE OR REPLACE VIEW", "CREATE OR REPLACE VIEW v1 AS SELECT id FROM t1"},
+		{"CREATE VIEW with columns", "CREATE VIEW v2 (a, b) AS SELECT id, name FROM t1"},
+		{"DROP VIEW", "DROP VIEW IF EXISTS v1, v2"},
+
+		// 存储过程
+		{"CREATE PROCEDURE", "CREATE PROCEDURE p1(IN a INT, OUT b VARCHAR(20), INOUT c INT) BEGIN SET b = 'x'; SELECT a INTO c FROM t1 LIMIT 1; END"},
+		{"CREATE PROCEDURE simple", "CREATE PROCEDURE p2() SELECT 1"},
+		{"CALL", "CALL p1(1, @out, @inout)"},
+		{"DROP PROCEDURE", "DROP PROCEDURE IF EXISTS p1"},
+
+		// 触发器
+		{"CREATE TRIGGER", "CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.name = 'x'"},
+		{"CREATE TRIGGER with body", "CREATE TRIGGER trg2 AFTER UPDATE ON t1 FOR EACH ROW BEGIN SET @a = 1; SET @b = 2; END"},
+		{"DROP TRIGGER", "DROP TRIGGER IF EXISTS trg1"},
+
+		// 函数（vitess 不支持语法，由自研解析器处理）
+		{"CREATE FUNCTION", "CREATE FUNCTION f1(p INT) RETURNS INT DETERMINISTIC BEGIN RETURN p + 1; END"},
+		{"CREATE FUNCTION simple", "CREATE FUNCTION f2(p VARCHAR(10)) RETURNS VARCHAR(20) NO SQL RETURN CONCAT(p, 'x')"},
+		{"DROP FUNCTION", "DROP FUNCTION IF EXISTS f1"},
+
+		// 其它
+		{"SET", "SET @a = 1"},
+		{"USE", "USE test"},
+		{"SHOW TABLES", "SHOW TABLES"},
+		{"SHOW CREATE TABLE", "SHOW CREATE TABLE t1"},
 	}
 
 	for _, tc := range testCases {
 		fmt.Println("=" + tc.name + ": " + tc.sql)
 		parseAndPrint(ctx, engine, tc.sql)
 		fmt.Println()
+	}
+
+	// 表结构自省：从 catalog 读取真实表结构
+	fmt.Println("===== 表结构自省 describeTable =====")
+	details, err := describeTable(ctx, engine.Analyzer.Catalog, "test", "t1")
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+	} else {
+		jsonOutput, _ := json.MarshalIndent(details, "", "  ")
+		fmt.Println(string(jsonOutput))
 	}
 }
 
@@ -150,11 +208,91 @@ func createTestTables(db *memory.Database) {
 	db.AddTable("t2", t2)
 }
 
+// parseAndPrint 解析并打印 SQL 的结构化描述。
+//
+// 解析分两层：
+//  1. AST 层（vitess）——纯语法解析，不依赖 catalog，能处理 DDL/视图/存储过程/触发器，
+//     也能解析 catalog 中不存在的表。
+//  2. plan 层（analyzer）——语义分析，需要真实表结构，能展开 SELECT *、
+//     解析出实际的主键/索引等语义信息。
+//
+// 策略：AST 层能处理时优先用 AST 层（覆盖面更广、不依赖表）；
+// AST 层不处理或失败时回退到 plan 层。
 func parseAndPrint(ctx *sql.Context, engine *sqle.Engine, sqlStr string) {
-	analyzedNode, err := engine.AnalyzeQuery(ctx, sqlStr)
+	stmt, err := parseSQL(ctx, engine, sqlStr)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
+	}
+	jsonOutput, err := json.MarshalIndent(stmt, "", "  ")
+	if err != nil {
+		fmt.Printf("JSON error: %v\n", err)
+		return
+	}
+	fmt.Println(string(jsonOutput))
+}
+
+// parseSQL 解析 SQL 并返回结构化结果。
+//
+// 分派策略：
+//   - CREATE FUNCTION：vitess 不支持语法，走自研解析器
+//   - DML/DQL（SELECT/INSERT/UPDATE/DELETE）：优先 plan 层，能拿到语义增强信息
+//     （如 SELECT * 展开、列名限定）；表不存在导致 plan 失败时回退 AST 层
+//   - DDL/视图/存储过程/触发器等：走 AST 层，plan 层在这些场景信息更少
+//     （如 CreateProcedure 不暴露参数与 body 结构）且强依赖 catalog
+func parseSQL(ctx *sql.Context, engine *sqle.Engine, sqlStr string) (*SQLStatement, error) {
+	// CREATE FUNCTION 在 vitess 语法层不支持，需要自己解析
+	if fn := parseCreateFunction(sqlStr); fn != nil {
+		return &SQLStatement{Type: "CreateFunction", Details: fn}, nil
+	}
+
+	ast, astErr := parseAST(sqlStr)
+	var astStmt *ASTStatement
+	if astErr == nil {
+		astStmt = extractASTStatement(ast)
+	}
+
+	// DML/DQL 优先用 plan 层拿语义增强信息，失败再回退 AST 层
+	if isDMLType(astStmt) && engine != nil {
+		if stmt, err := parseViaPlan(ctx, engine, sqlStr); err == nil {
+			return stmt, nil
+		}
+	}
+	if astStmt != nil {
+		return &SQLStatement{Type: astStmt.Type, Details: astStmt.Details}, nil
+	}
+
+	// AST 层不支持，回退到 plan 层
+	if engine == nil {
+		return nil, fmt.Errorf("无法解析该语句：AST 层不支持，且未提供 catalog 无法做语义分析")
+	}
+	stmt, err := parseViaPlan(ctx, engine, sqlStr)
+	if err != nil {
+		if astErr != nil {
+			return nil, fmt.Errorf("AST 解析失败: %v; 语义分析失败: %v", astErr, err)
+		}
+		return nil, err
+	}
+	return stmt, nil
+}
+
+// isDMLType 判断是否为 DML/DQL 语句（这类语句优先走 plan 层）。
+func isDMLType(stmt *ASTStatement) bool {
+	if stmt == nil {
+		return false
+	}
+	switch stmt.Type {
+	case "Select", "Insert", "Update", "Delete":
+		return true
+	}
+	return false
+}
+
+// parseViaPlan 走 plan 层（语义分析）解析 SQL。
+func parseViaPlan(ctx *sql.Context, engine *sqle.Engine, sqlStr string) (*SQLStatement, error) {
+	analyzedNode, err := engine.AnalyzeQuery(ctx, sqlStr)
+	if err != nil {
+		return nil, err
 	}
 
 	var sqlStmt SQLStatement
@@ -181,12 +319,7 @@ func parseAndPrint(ctx *sql.Context, engine *sqle.Engine, sqlStr string) {
 		}
 	}
 
-	jsonOutput, err := json.MarshalIndent(sqlStmt, "", "  ")
-	if err != nil {
-		fmt.Printf("JSON error: %v\n", err)
-		return
-	}
-	fmt.Println(string(jsonOutput))
+	return &sqlStmt, nil
 }
 
 func extractSelectDetails(node sql.Node) *SelectDetails {
