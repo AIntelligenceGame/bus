@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dolthub/go-mysql-server"
+	sqle "github.com/dolthub/go-mysql-server"
 	"github.com/dolthub/go-mysql-server/memory"
 	"github.com/dolthub/go-mysql-server/sql"
 	"github.com/dolthub/go-mysql-server/sql/expression"
@@ -43,9 +43,9 @@ type UpdateDetails struct {
 
 // InsertDetails represents the details of an INSERT statement.
 type InsertDetails struct {
-	Table      string        `json:"table"`
-	Columns    []string      `json:"columns,omitempty"`
-	Values     []string      `json:"values,omitempty"`
+	Table      string         `json:"table"`
+	Columns    []string       `json:"columns,omitempty"`
+	Values     []string       `json:"values,omitempty"`
 	SelectData *SelectDetails `json:"select_data,omitempty"`
 }
 
@@ -248,7 +248,7 @@ func visitUpdateNode(node sql.Node, visitor *updateVisitor) {
 		visitUpdateNode(n.Child, visitor)
 	case *plan.UpdateSource:
 		for _, expr := range n.UpdateExprs {
-			visitor.Details.SetClauses = append(visitor.Details.SetClauses, expr.String())
+			visitor.Details.SetClauses = append(visitor.Details.SetClauses, normalizeSQL(expr.String()))
 		}
 		visitUpdateNode(n.Child, visitor)
 	case *plan.ResolvedTable:
@@ -260,7 +260,7 @@ func visitUpdateNode(node sql.Node, visitor *updateVisitor) {
 			visitor.Details.Table = n.Name()
 		}
 	case *plan.Filter:
-		visitor.Details.Where = n.Expression.String()
+		visitor.Details.Where = normalizeSQL(n.Expression.String())
 		visitUpdateNode(n.Child, visitor)
 	case *plan.Sort:
 		for _, field := range n.SortFields {
@@ -396,6 +396,13 @@ type deleteVisitor struct {
 	Details *DeleteDetails
 }
 
+// normalizeSQL 还原分析器优化痕迹，还原为原始 SQL 语义。
+// 目前 go-mysql-server 会把 `IN (...)` 优化成 `HashInTuple`，
+// 其 String() 输出带 "HASH " 前缀，这里去掉以贴近原始 SQL。
+func normalizeSQL(s string) string {
+	return strings.ReplaceAll(s, " HASH IN ", " IN ")
+}
+
 func visitDeleteNode(node sql.Node, visitor *deleteVisitor) {
 	if node == nil {
 		return
@@ -403,7 +410,7 @@ func visitDeleteNode(node sql.Node, visitor *deleteVisitor) {
 
 	switch n := node.(type) {
 	case *plan.Filter:
-		visitor.Details.Where = n.Expression.String()
+		visitor.Details.Where = normalizeSQL(n.Expression.String())
 		visitDeleteNode(n.Child, visitor)
 	case *plan.Sort:
 		for _, field := range n.SortFields {
@@ -431,7 +438,7 @@ type selectVisitor struct {
 }
 
 const (
-	foundProject  = "project"
+	foundProject = "project"
 	foundGroupBy = "groupby"
 	foundHaving  = "having"
 	foundOrderBy = "orderby"
@@ -455,7 +462,7 @@ func visitNode(node sql.Node, visitor *selectVisitor) {
 
 	case *plan.Filter:
 		if visitor.Details.Where == "" {
-			visitor.Details.Where = n.Expression.String()
+			visitor.Details.Where = normalizeSQL(n.Expression.String())
 		}
 		visitNode(n.Child, visitor)
 
