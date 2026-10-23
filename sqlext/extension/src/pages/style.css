@@ -1,0 +1,106 @@
+/* 扩展内部页面的共用样式。
+   刻意保持零依赖、零构建：一个 <link> 就能用。 */
+
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-2: #1e222b;
+  --line: #2a2f3a;
+  --fg: #e6e9ef;
+  --fg-dim: #9aa3b2;
+  --accent: #4f8cff;
+  --accent-2: #2f6fe0;
+  --ok: #3ecf8e;
+  --err: #ff6b6b;
+  --warn: #ffb454;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.6 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.wrap { padding: 16px; }
+.center { max-width: 420px; margin: 0 auto; }
+
+h1 { font-size: 18px; margin: 0 0 4px; }
+h2 { font-size: 14px; margin: 20px 0 8px; color: var(--fg-dim); font-weight: 600; }
+.sub { color: var(--fg-dim); font-size: 12px; margin: 0 0 16px; }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+label { display: block; font-size: 12px; color: var(--fg-dim); margin: 10px 0 4px; }
+
+input, select {
+  width: 100%;
+  padding: 9px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--fg);
+  font-size: 14px;
+  outline: none;
+}
+input:focus, select:focus { border-color: var(--accent); }
+
+button {
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+button:hover { background: var(--accent-2); }
+button.ghost { background: transparent; border: 1px solid var(--line); color: var(--fg-dim); }
+button.ghost:hover { border-color: var(--accent); color: var(--fg); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button.block { width: 100%; margin-top: 14px; }
+
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; }
+
+.msg { margin-top: 10px; font-size: 13px; min-height: 18px; }
+.msg.err { color: var(--err); }
+.msg.ok { color: var(--ok); }
+.msg.warn { color: var(--warn); }
+
+.kv { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.kv:last-child { border-bottom: 0; }
+.kv span:first-child { color: var(--fg-dim); }
+.kv span:last-child { font-variant-numeric: tabular-nums; }
+
+.balance { font-size: 30px; font-weight: 600; letter-spacing: -.5px; }
+.balance small { font-size: 13px; color: var(--fg-dim); font-weight: 400; }
+
+.list { list-style: none; padding: 0; margin: 0; }
+.list li {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px;
+}
+.list li:last-child { border-bottom: 0; }
+
+.hint { font-size: 12px; color: var(--fg-dim); line-height: 1.7; }
+.hint code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+
+.tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.tabs a {
+  flex: 1; text-align: center; padding: 8px; border-radius: 7px;
+  background: var(--panel); border: 1px solid var(--line);
+  color: var(--fg-dim); text-decoration: none; font-size: 13px;
+}
+.tabs a:hover { border-color: var(--accent); color: var(--fg); }
+.tabs a.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.qr { display: block; margin: 12px auto; border-radius: 8px; background: #fff; padding: 8px; max-width: 220px; }

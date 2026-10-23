@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>登录 · SQL 结构化解析</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap center">
+  <h1>登录</h1>
+  <p class="sub">登录后才能调用解析服务</p>
+
+  <div class="card">
+    <label>邮箱</label>
+    <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
+    <label>口令</label>
+    <input id="password" type="password" autocomplete="current-password" placeholder="至少 8 位">
+    <button class="block" id="btn" data-label="登录">登录</button>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="tabs">
+    <a href="login.html" class="on">登录</a>
+    <a href="register.html">注册</a>
+  </div>
+</div>
+<script type="module" src="login.js"></script>
+</body>
+</html>

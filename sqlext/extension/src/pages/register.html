@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>注册 · SQL 结构化解析</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap center">
+  <h1>注册</h1>
+  <p class="sub">新账号会赠送一些免费积分</p>
+
+  <div class="card">
+    <label>邮箱</label>
+    <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
+    <label>口令</label>
+    <input id="password" type="password" autocomplete="new-password" placeholder="至少 8 位">
+    <label>确认口令</label>
+    <input id="password2" type="password" autocomplete="new-password">
+    <button class="block" id="btn" data-label="注册">注册</button>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="tabs">
+    <a href="login.html">登录</a>
+    <a href="register.html" class="on">注册</a>
+  </div>
+</div>
+<script type="module" src="register.js"></script>
+</body>
+</html>

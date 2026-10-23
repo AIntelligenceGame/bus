@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>SQL 结构化解析</title>
+  <link rel="stylesheet" href="style.css">
+  <style>body { width: 320px; }</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="logged-out" style="display:none">
+    <h1>SQL 结构化解析</h1>
+    <p class="sub">登录后，网页就能调用你的解析服务。</p>
+    <button class="block" id="btn-login">登录</button>
+    <button class="block ghost" id="btn-register">注册</button>
+  </div>
+
+  <div id="logged-in" style="display:none">
+    <h1>SQL 结构化解析</h1>
+    <p class="sub" id="user-email">-</p>
+
+    <div class="card">
+      <div class="balance"><span id="balance">-</span> <small>积分</small></div>
+      <div class="hint" id="cost-hint"></div>
+    </div>
+
+    <div class="card">
+      <div class="hint" style="margin-bottom:6px">当前网站</div>
+      <div id="site-origin" style="font-size:13px;word-break:break-all">-</div>
+      <div id="site-state" class="hint" style="margin-top:6px"></div>
+      <button class="block" id="btn-authorize">授权当前网站</button>
+    </div>
+
+    <div class="row">
+      <button id="btn-recharge">充值</button>
+      <button class="ghost" id="btn-settings">设置</button>
+    </div>
+    <button class="block ghost" id="btn-logout">退出登录</button>
+  </div>
+
+  <div class="msg" id="msg"></div>
+</div>
+<script type="module" src="popup.js"></script>
+</body>
+</html>

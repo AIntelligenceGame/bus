@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>授权网站 · SQL 结构化解析</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap center">
+  <h1>授权网站</h1>
+  <p class="sub">允许该网站调用你的解析服务</p>
+
+  <div class="card">
+    <div class="hint" style="margin-bottom:6px">网站地址</div>
+    <div id="origin" style="font-size:15px;word-break:break-all">-</div>
+    <div class="hint" style="margin-top:12px">
+      授权后，这个网站里的页面脚本可以调用 <code>window.sqlext.parse(sql)</code>，
+      消耗你的积分。随时可以在设置里撤销。
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="ghost" id="btn-deny">拒绝</button>
+      <button id="btn-allow">允许</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+</div>
+<script type="module" src="authorize.js"></script>
+</body>
+</html>

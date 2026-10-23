@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>充值 · SQL 结构化解析</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap center">
+  <h1>充值</h1>
+  <p class="sub">积分用于支付 SQL 解析服务</p>
+
+  <div class="card">
+    <div class="kv"><span>当前余额</span><span id="balance">-</span></div>
+    <div class="kv"><span>每次解析消耗</span><span id="cost">-</span></div>
+  </div>
+
+  <div class="card">
+    <label>充值额度（积分）</label>
+    <select id="amount">
+      <option value="100">100 积分</option>
+      <option value="500" selected>500 积分</option>
+      <option value="1000">1000 积分</option>
+      <option value="5000">5000 积分</option>
+    </select>
+
+    <label>支付方式</label>
+    <select id="channel"></select>
+
+    <button class="block" id="btn" data-label="创建订单">创建订单</button>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="card" id="pay-box" style="display:none">
+    <h2>支付信息</h2>
+    <div id="pay-body"></div>
+  </div>
+
+  <h2>历史订单</h2>
+  <div class="card">
+    <ul class="list" id="orders"><li class="hint">加载中…</li></ul>
+  </div>
+</div>
+<script type="module" src="recharge.js"></script>
+</body>
+</html>

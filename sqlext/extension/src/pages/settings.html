@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>设置 · SQL 结构化解析</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap center">
+  <h1>设置</h1>
+  <p class="sub">解析服务地址、站点授权、账号</p>
+
+  <h2>解析服务</h2>
+  <div class="card">
+    <label>服务端地址</label>
+    <input id="apiBase" placeholder="https://api.example.com">
+    <div class="hint">保存时会请求访问该地址的权限。</div>
+    <button class="block" id="btn-save" data-label="保存">保存</button>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <h2>已授权的网站</h2>
+  <div class="card">
+    <ul class="list" id="sites"><li class="hint">加载中…</li></ul>
+    <div class="hint" style="margin-top:10px">
+      只有列表里的网站，页面里才有 <code>window.sqlext</code>，
+      调用解析接口也会被服务端拒绝。
+    </div>
+  </div>
+
+  <h2>页面里怎么用</h2>
+  <div class="card">
+    <div class="hint">
+      <p>在页面的控制台里：</p>
+      <p><code>await window.sqlext.parse('SELECT id FROM t')</code></p>
+      <p>返回：<code>{ statement, balance, cost, duration_ms }</code></p>
+      <p><code>statement.details.from</code> 就是表名，<code>statement.details.selected_exprs</code> 是字段列表。</p>
+    </div>
+  </div>
+
+  <h2>账号</h2>
+  <div class="card">
+    <div class="kv"><span>邮箱</span><span id="email">-</span></div>
+    <div class="kv"><span>余额</span><span id="balance">-</span></div>
+    <button class="block ghost" id="btn-logout">退出登录</button>
+  </div>
+</div>
+<script type="module" src="settings.js"></script>
+</body>
+</html>
