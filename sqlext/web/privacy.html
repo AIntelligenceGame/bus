@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>隐私政策 · SQL 结构化解析</title>
+<style>
+  body {
+    margin: 0;
+    padding: 40px 20px;
+    background: #0f1115;
+    color: #e6e9ef;
+    font: 15px/1.75 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 { font-size: 18px; margin: 32px 0 10px; color: #9aa3b2; }
+  .updated { color: #9aa3b2; font-size: 13px; margin-bottom: 28px; }
+  code { background: #1e222b; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  ul { padding-left: 22px; }
+  li { margin: 5px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  th, td { border: 1px solid #2a2f3a; padding: 9px 11px; text-align: left; font-size: 14px; }
+  th { background: #171a21; }
+  .note { background: #171a21; border-left: 3px solid #4f8cff; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+  footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid #2a2f3a; color: #9aa3b2; font-size: 13px; }
+  a { color: #4f8cff; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>隐私政策</h1>
+<p class="updated">最后更新：2026 年 10 月 23 日　·　适用于 Chrome 扩展「SQL 结构化解析」及配套的网页版服务</p>
+
+<h2>一、我们是谁</h2>
+<p>本扩展及其配套服务（统称「本服务」）由 <code>SQL 结构化解析</code> 运营方（下称「我们」）提供。本政策说明我们在提供解析服务过程中收集哪些信息、如何使用、以及你有哪些权利。</p>
+<p>联系我们：<code>support@example.com</code>（<strong>请在正式发布前替换为你的真实联系邮箱</strong>）。</p>
+
+<h2>二、我们收集的信息</h2>
+
+<table>
+  <tr><th>信息</th><th>来源</th><th>用途</th></tr>
+  <tr>
+    <td>账号邮箱、加密后的密码</td>
+    <td>你注册时填写</td>
+    <td>创建账号、登录鉴权</td>
+  </tr>
+  <tr>
+    <td>登录令牌</td>
+    <td>登录后签发</td>
+    <td>维持登录状态。令牌只保存在你浏览器的扩展本地存储中，网页脚本无法读取</td>
+  </tr>
+  <tr>
+    <td>你提交的 SQL 语句</td>
+    <td>网页脚本或网页版调用</td>
+    <td>仅用于当次解析并返回结果</td>
+  </tr>
+  <tr>
+    <td>请求来源网站地址（origin）</td>
+    <td>浏览器上报</td>
+    <td>校验该网站是否在你的授权列表内</td>
+  </tr>
+  <tr>
+    <td>余额、充值订单记录</td>
+    <td>你的操作</td>
+    <td>计费、对账、开票</td>
+  </tr>
+  <tr>
+    <td>已授权网站列表</td>
+    <td>你的操作</td>
+    <td>控制哪些网站可以调用解析服务</td>
+  </tr>
+</table>
+
+<h2>三、我们<strong>不</strong>收集的信息</h2>
+<ul>
+  <li><strong>不</strong>收集你的浏览历史</li>
+  <li><strong>不</strong>读取除「你授权的网站 + 你主动提交的 SQL」以外的任何网页内容</li>
+  <li><strong>不</strong>收集广告标识符，不做用户画像，不用于广告投放</li>
+  <li><strong>不</strong>出售、不出租、不交换你的个人信息</li>
+  <li><strong>不</strong>在你的设备上上传任何代码到第三方</li>
+</ul>
+
+<div class="note">
+  <strong>关于 SQL 语句：</strong>解析请求会把 SQL 文本发送到我们的服务器。
+  我们只用它做当次语法解析，<strong>不会</strong>用于训练模型、不会与其他用户的
+  数据混用、不会用于广告。但请注意：<strong>请不要提交含有生产数据、密钥、
+  用户个人信息的 SQL</strong>——它会离开你的设备进入我们的服务器。
+</div>
+
+<h2>四、我们如何使用信息</h2>
+<ul>
+  <li>提供并维护解析服务</li>
+  <li>处理充值、计费与退款</li>
+  <li>检测并阻止滥用（比如异常高频的解析请求）</li>
+  <li>履行法律法规要求的义务</li>
+</ul>
+<p>我们<strong>不会</strong>将你的信息用于自动化决策或画像。</p>
+
+<h2>五、共享与披露</h2>
+<p>我们<strong>不会</strong>向第三方出售你的个人信息。仅在以下情形披露：</p>
+<ul>
+  <li>获得你的明确授权</li>
+  <li>法律法规要求，或为保护我们及用户的合法权益所必需</li>
+</ul>
+<p>支付环节：充值订单会涉及支付渠道（当前为人工转账方式），
+我们只共享完成交易所必需的订单信息（如订单号、金额、状态）。</p>
+
+<h2>六、Cookie 与本地存储</h2>
+<p>网页版使用本地存储（localStorage）保存登录令牌和界面偏好，
+不使用第三方 Cookie，不做跨站跟踪。</p>
+
+<h2>七、数据保留</h2>
+<ul>
+  <li>账号信息：账号存续期间保留</li>
+  <li>SQL 语句：不持久化保存，仅在内存中处理当次请求</li>
+  <li>订单与余额记录：按法律法规要求保留（通常 5–10 年，用于财税审计）</li>
+</ul>
+
+<h2>八、数据安全</h2>
+<ul>
+  <li>全站 HTTPS 传输</li>
+  <li>密码使用 bcrypt 加盐哈希存储，我们无法还原明文</li>
+  <li>登录令牌为随机串，服务端可随时吊销</li>
+  <li>生产环境数据库不直接暴露公网</li>
+</ul>
+
+<h2>九、你的权利</h2>
+<p>根据《个人信息保护法》《数据安全法》及 GDPR（如适用），你有权：</p>
+<ul>
+  <li><strong>访问</strong>你的账号信息、余额、订单记录</li>
+  <li><strong>更正</strong>不准确的账号信息</li>
+  <li><strong>删除</strong>账号及关联数据（法律要求保留的订单记录除外）</li>
+  <li><strong>撤销</strong>已授权的网站（扩展设置页可随时操作）</li>
+  <li><strong>撤回同意</strong>、注销账号</li>
+  <li><strong>导出</strong>你的数据</li>
+</ul>
+<p>行使方式：发送邮件至 <code>support@example.com</code>，我们会在 15 个工作日内处理。</p>
+
+<h2>十、未成年人</h2>
+<p>本服务不面向未满 14 周岁的未成年人。我们不会主动收集未成年人的个人信息。
+如发现未成年人的信息被误收，请联系我们删除。</p>
+
+<h2>十一、政策更新</h2>
+<p>本政策如有变更，我们会在本页面更新「最后更新」日期并通过扩展内的公告提示。
+重大变更会提前 7 天通知。</p>
+
+<footer>
+  © 2026 SQL 结构化解析　·
+  <a href="https://example.com/terms">服务条款</a>　·
+  <a href="mailto:support@example.com">联系邮箱</a>
+</footer>
+
+</main>
+</body>
+</html>

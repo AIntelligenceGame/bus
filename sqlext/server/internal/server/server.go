@@ -77,6 +77,12 @@ func (s *Server) Handler() http.Handler {
 	// 解析
 	mux.HandleFunc("POST /api/v1/parse", s.handleParse)
 
+	// 静态页面（落地页、隐私政策）。
+	// Chrome Web Store 要求隐私政策有公网 URL，直接由本服务托管最省事。
+	if h := webHandler(s.cfg.WebDir); h != nil {
+		mux.Handle("GET /", h)
+	}
+
 	return s.withMiddleware(mux)
 }
 

@@ -29,6 +29,10 @@ type Config struct {
 	FreeQuota int64
 	// RateLimitPerMin 是每个用户每分钟最多解析多少次。
 	RateLimitPerMin int
+	// WebDir 是静态页面目录（落地页、隐私政策）。
+	// Chrome Web Store 要求隐私政策有公网 URL，由本服务托管最省事。
+	// 为空则不挂静态路由。
+	WebDir string
 }
 
 // Load 从环境变量装载配置。
@@ -42,6 +46,7 @@ func Load() Config {
 		CORSOrigins:     envList("SQLEXT_CORS_ORIGINS"),
 		FreeQuota:       int64(envInt("SQLEXT_FREE_QUOTA", 20)),
 		RateLimitPerMin: envInt("SQLEXT_RATE_LIMIT_PER_MIN", 60),
+		WebDir:          env("SQLEXT_WEB_DIR", ""),
 	}
 }
 

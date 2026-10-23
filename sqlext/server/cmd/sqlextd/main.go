@@ -30,6 +30,22 @@ func main() {
 
 	cfg := config.Load()
 
+	// 静态页面目录：落地页 + 隐私政策。
+	// Chrome Web Store 要求隐私政策有公网 URL，让本服务自己托管最省事。
+	if cfg.WebDir == "" {
+		for _, cand := range []string{"sqlext/web", "../web", "../../web"} {
+			if st, err := os.Stat(cand); err == nil && st.IsDir() {
+				cfg.WebDir = cand
+				break
+			}
+		}
+	}
+	if cfg.WebDir != "" {
+		logger.Printf("静态页面目录：%s", cfg.WebDir)
+	} else {
+		logger.Println("未找到静态页面目录（sqlext/web），隐私政策 URL 需要另外部署")
+	}
+
 	// TODO: 生产环境换成 MySQL 实现（store.Store 接口已就绪）。
 	// 内存实现重启即丢余额，只适合开发/自用/内网。
 	st := store.NewMemory()

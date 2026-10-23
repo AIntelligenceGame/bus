@@ -39,16 +39,22 @@ sqlext/
 │       └── server/            HTTP 路由与处理器
 ├── extension/                 Chrome 扩展（Manifest V3）
 │   ├── manifest.json
+│   ├── package.sh             打包成可上传商店的 zip
 │   ├── icons/
+│   ├── store/listing.md       商店后台各字段怎么填
 │   └── src/
 │       ├── background/service-worker.js   后台：持令牌、调服务端、站点授权
 │       ├── content/host.js                隔离世界：注入 + 转发
 │       ├── content/page-bridge.js         主世界：暴露 window.sqlext
 │       ├── lib/api.js                     服务端通信封装
 │       └── pages/                         popup / login / register / recharge / settings / authorize
+├── web/                       公网页面（由 sqlextd 托管）
+│   ├── index.html             落地页
+│   └── privacy.html           隐私政策（商店强制要求公网 URL）
 └── docs/
     ├── architecture.md        架构与安全设计
-    └── market.md              市场调研：支付方案、商店政策、竞品
+    ├── market.md              市场调研：支付方案、商店政策、竞品
+    └── publish.md             上架流程（发商店 / 自建分发）
 ```
 
 ## 快速开始
@@ -135,6 +141,7 @@ r.balance;                          // 剩余积分
 | `SQLEXT_CORS_ORIGINS` | 空 | 允许跨域的来源，逗号分隔 |
 | `SQLEXT_PAYEE` | 空 | 收款方（人工转账渠道用） |
 | `SQLEXT_PAY_NOTICE` | 空 | 支付说明 |
+| `SQLEXT_WEB_DIR` | 自动探测 | 静态页面目录（落地页 + 隐私政策，商店要求公网 URL） |
 
 ## 测试
 
@@ -160,7 +167,23 @@ make all        # lint + 全部测试
   支付主体要和备案主体一致。**
 - **扩展只做了 Chrome/Edge**。Firefox 需要单独的 manifest（`background.scripts` 而不是 `service_worker`）。
 - **没有做「用量统计」和「调用日志」**。
-- **没做网页版**——但从市场调研看，网页版才是拉新入口，插件只是深度集成的加分项。
+- **没做可交互的网页版**，只有落地页和隐私政策（商店审核要公网 URL）。
+  网页版解析界面还没做——但从市场调研看，它才是拉新入口，插件只是深度集成的加分项。
+- **扩展还没在真实 Chrome 里做过端到端联调**（桥接协议用 Node `vm` 模拟三层验证过，
+  Chrome 打包也用 `google-chrome --pack-extension` 校验过 manifest）。
+  上架前请按 [publish.md · 检查清单](docs/publish.md#四上架前的检查清单) 手工走一遍。
+
+## 上架
+
+别人能搜到这个插件的唯一办法是**发到 Chrome Web Store**。
+
+```bash
+make pack API_BASE=https://api.你的域名   # 打出可上传的 zip
+```
+
+商店后台每个字段填什么、权限理由怎么写、审核员会问什么：
+[extension/store/listing.md](extension/store/listing.md)。
+完整上架流程（含自建分发、CRX 自动更新）：[docs/publish.md](docs/publish.md)。
 
 ## 相关文档
 

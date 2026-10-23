@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -245,6 +247,45 @@ func TestCommentSQLIsParsedCleanly(t *testing.T) {
 	}
 	if len(out.Statement.Details.SelectedExprs) != 2 {
 		t.Errorf("字段数不对: %v", out.Statement.Details.SelectedExprs)
+	}
+}
+
+// TestStaticWebPages 静态页面（隐私政策、落地页）能正常托管。
+// Chrome Web Store 要求隐私政策有公网 URL，所以这条要保证能用。
+func TestStaticWebPages(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>落地页</h1>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "privacy.html"), []byte("<h1>隐私政策</h1>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := newTestServer(t, 1)
+	s.cfg.WebDir = dir
+
+	// 落地页：目录请求 → index.html
+	rec := do(t, s, "GET", "/", "", nil, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("落地页期望 200，实际 %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "落地页") {
+		t.Errorf("落地页内容不对: %s", rec.Body.String())
+	}
+
+	// 隐私政策
+	rec = do(t, s, "GET", "/privacy.html", "", nil, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("隐私政策期望 200，实际 %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "隐私政策") {
+		t.Errorf("隐私政策内容不对: %s", rec.Body.String())
+	}
+
+	// 不该能读到目录外的文件
+	rec = do(t, s, "GET", "/../../etc/passwd", "", nil, nil)
+	if rec.Code == http.StatusOK && strings.Contains(rec.Body.String(), "root:") {
+		t.Error("静态目录穿越了，不该读到 /etc/passwd")
 	}
 }
 

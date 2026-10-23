@@ -17,7 +17,8 @@ import {
   getCachedUser,
   getSites,
   setSites,
-  getApiBase
+  getApiBase,
+  setApiBase
 } from '../lib/api.js';
 
 const CONTENT_SCRIPT_ID = 'sqlext-host';
@@ -259,7 +260,9 @@ async function handleUIMessage(msg) {
       return { ok: true, result: { apiBase: await getApiBase() } };
     }
     case 'setApiBase': {
-      await setApiBaseWithPermission(msg.payload.apiBase);
+      // 主机权限由调用方（扩展页面）申请——Service Worker 里没有用户手势，
+      // chrome.permissions.request() 会静默失败。这里只负责存。
+      await setApiBase(msg.payload.apiBase);
       return { ok: true, result: { apiBase: await getApiBase() } };
     }
     case 'listSites': {
@@ -294,23 +297,6 @@ async function handleUIMessage(msg) {
     default:
       return { ok: false, error: '未知请求类型: ' + msg.type };
   }
-}
-
-/** 改服务端地址前，先申请对应的访问权限。 */
-async function setApiBaseWithPermission(base) {
-  const clean = String(base || '').replace(/\/+$/, '');
-  try {
-    const u = new URL(clean);
-    const pattern = u.protocol + '//' + u.hostname + (u.port ? ':' + u.port : '') + '/*';
-    const granted = await chrome.permissions.request({ origins: [pattern] });
-    if (!granted) {
-      throw new Error('未授予访问该服务端的权限');
-    }
-  } catch (e) {
-    throw new Error('设置服务端地址失败：' + (e && e.message ? e.message : e));
-  }
-  const { setApiBase } = await import('../lib/api.js');
-  await setApiBase(clean);
 }
 
 function normalizeOrigin(origin) {
