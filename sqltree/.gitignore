@@ -1,4 +1,5 @@
 # 编译产物
 /sqltree
+/cmd/sqltree/sqltree
 *.test
 *.out

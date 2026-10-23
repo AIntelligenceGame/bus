@@ -1,18 +1,14 @@
-package main
+package sqltree
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 
 	sqle "github.com/dolthub/go-mysql-server"
-	"github.com/dolthub/go-mysql-server/memory"
 	"github.com/dolthub/go-mysql-server/sql"
 	"github.com/dolthub/go-mysql-server/sql/expression"
 	"github.com/dolthub/go-mysql-server/sql/plan"
-	"github.com/dolthub/go-mysql-server/sql/types"
 )
 
 // SQLStatement represents a parsed SQL statement with its type and details.
@@ -24,245 +20,133 @@ type SQLStatement struct {
 // SelectDetails represents the details of a SELECT statement.
 type SelectDetails struct {
 	SelectedExprs []string `json:"selected_exprs,omitempty"`
+	Distinct      bool     `json:"distinct,omitempty"`
 	From          string   `json:"from,omitempty"`
 	Where         string   `json:"where,omitempty"`
 	GroupBy       []string `json:"group_by,omitempty"`
-	Having        string   `json:"having,omitempty"`
-	OrderBy       []string `json:"order_by,omitempty"`
-	Limit         int      `json:"limit,omitempty"`
-	CTEs          []CTEInfo `json:"ctes,omitempty"`
-	SetOp         string   `json:"set_op,omitempty"`
+	// WithRollup 表示 GROUP BY ... WITH ROLLUP（MySQL 8 之前的老语法）。
+	WithRollup bool      `json:"with_rollup,omitempty"`
+	Having     string    `json:"having,omitempty"`
+	OrderBy    []string  `json:"order_by,omitempty"`
+	Limit      int       `json:"limit,omitempty"`
+	Offset     int       `json:"offset,omitempty"`
+	CTEs       []CTEInfo `json:"ctes,omitempty"`
+	SetOp      string    `json:"set_op,omitempty"`
+	// SetOpBranches 是集合运算（UNION/INTERSECT/EXCEPT）左右两侧的完整细节。
+	//
+	// 没有它的话，`SELECT a FROM t1 WHERE x=1 UNION SELECT b FROM t2 WHERE y=2`
+	// 只会剩下投影列，两个分支的 FROM/WHERE 全部丢失。
+	SetOpBranches []SelectDetails `json:"set_op_branches,omitempty"`
 }
 
 // UpdateDetails represents the details of an UPDATE statement.
 type UpdateDetails struct {
 	Table      string   `json:"table"`
+	From       string   `json:"from,omitempty"`
 	SetClauses []string `json:"set_clauses"`
 	Where      string   `json:"where,omitempty"`
 	OrderBy    []string `json:"order_by,omitempty"`
 	Limit      int      `json:"limit,omitempty"`
+	Offset     int      `json:"offset,omitempty"`
 }
 
 // InsertDetails represents the details of an INSERT statement.
 type InsertDetails struct {
-	Table      string         `json:"table"`
-	Columns    []string       `json:"columns,omitempty"`
-	Values     []string       `json:"values,omitempty"`
-	SelectData *SelectDetails `json:"select_data,omitempty"`
+	Table   string   `json:"table"`
+	Columns []string `json:"columns,omitempty"`
+	Values  []string `json:"values,omitempty"`
+	// Priority 是插入优先级：low_priority / high_priority / delayed。
+	// vitess 不支持这几个关键字，解析前剥离、解析后补回。
+	Priority    string         `json:"priority,omitempty"`
+	OnDuplicate []string       `json:"on_duplicate,omitempty"`
+	SelectData  *SelectDetails `json:"select_data,omitempty"`
 }
 
 // DeleteDetails represents the details of a DELETE statement.
 type DeleteDetails struct {
 	Table   string   `json:"table"`
+	From    string   `json:"from,omitempty"`
 	Where   string   `json:"where,omitempty"`
 	OrderBy []string `json:"order_by,omitempty"`
 	Limit   int      `json:"limit,omitempty"`
-}
-
-func main() {
-	// 创建内存数据库 provider
-	db := memory.NewDatabase("test")
-	pro := memory.NewDBProvider(db)
-
-	// 创建 SQL 引擎
-	engine := sqle.NewDefault(pro)
-
-	// 创建基础会话
-	baseSession := sql.NewBaseSession()
-	session := memory.NewSession(baseSession, pro)
-
-	// 创建解析上下文
-	ctx := sql.NewContext(context.Background(), sql.WithSession(session))
-	ctx.SetCurrentDatabase("test")
-
-	// 创建测试表 - 带主键
-	createTestTables(db)
-
-	// 测试各种复杂 SQL
-	testCases := []struct {
-		name string
-		sql  string
-	}{
-		// DML - UPDATE
-		{"Simple UPDATE", "UPDATE t1 SET name = 'new_name' WHERE id = 1"},
-		{"UPDATE with subquery in SET", "UPDATE t1 SET name = (SELECT name FROM t2 WHERE t2.id = t1.id), value = 100 WHERE status = 1"},
-		{"UPDATE with JOIN", "UPDATE t1 a JOIN t2 b ON a.id = b.id SET a.name = b.name WHERE b.status = 1"},
-
-		// DML - INSERT
-		{"INSERT VALUES", "INSERT INTO t1 (id, name, value) VALUES (1, 'test', 100)"},
-		{"INSERT SELECT", "INSERT INTO t1 (id, name, value) SELECT id, name, value FROM t2 WHERE status = 1"},
-		{"INSERT multiple VALUES", "INSERT INTO t1 (id, name, value) VALUES (1, 'a', 100), (2, 'b', 200), (3, 'c', 300)"},
-		{"INSERT with CTE", "INSERT INTO t1 (id, name) WITH cte AS (SELECT id, name FROM t2) SELECT id, name FROM cte"},
-
-		// DML - DELETE
-		{"Simple DELETE", "DELETE FROM t1 WHERE id = 1"},
-		{"DELETE with ORDER BY LIMIT", "DELETE FROM t1 WHERE status = 0 ORDER BY id DESC LIMIT 10"},
-		{"DELETE with subquery", "DELETE FROM t1 WHERE id IN (SELECT id FROM t2 WHERE value < 10)"},
-		{"Multi-table DELETE", "DELETE t1, t2 FROM t1 JOIN t2 ON t1.id = t2.id WHERE t1.status = 0"},
-
-		// DQL - SELECT
-		{"Simple SELECT", "SELECT id, name, value FROM t1 WHERE status = 1"},
-		{"SELECT with JOIN", "SELECT a.id, a.name, b.value FROM t1 a JOIN t2 b ON a.id = b.id WHERE a.status = 1"},
-		{"SELECT with subquery in FROM", "SELECT * FROM (SELECT id, name FROM t1 WHERE x > 10) AS sub WHERE sub.id > 5"},
-		{"SELECT with GROUP BY", "SELECT category, COUNT(*) as cnt, SUM(value) as total FROM t1 GROUP BY category HAVING cnt > 1"},
-		{"SELECT with ORDER BY and LIMIT", "SELECT * FROM t1 ORDER BY id DESC LIMIT 10 OFFSET 5"},
-		{"SELECT DISTINCT", "SELECT DISTINCT name, value FROM t1 WHERE status = 1"},
-		{"SELECT with subquery in WHERE (IN)", "SELECT * FROM t1 WHERE id IN (SELECT id FROM t2 WHERE value > 50)"},
-		{"SELECT with subquery in WHERE (EXISTS)", "SELECT * FROM t1 WHERE EXISTS (SELECT 1 FROM t2 WHERE t2.id = t1.id)"},
-		{"SELECT with subquery in WHERE (scalar)", "SELECT * FROM t1 WHERE value > (SELECT AVG(value) FROM t2)"},
-
-		// SET Operations
-		{"SELECT UNION", "SELECT id, name FROM t1 UNION SELECT id, name FROM t2"},
-		{"SELECT UNION ALL", "SELECT id, name FROM t1 UNION ALL SELECT id, name FROM t2"},
-		{"SELECT INTERSECT", "SELECT id FROM t1 INTERSECT SELECT id FROM t2"},
-		{"SELECT EXCEPT", "SELECT id FROM t1 EXCEPT SELECT id FROM t2"},
-
-		// CTE (Common Table Expression)
-		{"WITH RECURSIVE CTE", "WITH RECURSIVE cte AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM cte WHERE n < 5) SELECT * FROM cte"},
-		{"WITH CTE multiple", "WITH cte1 AS (SELECT id, name FROM t1), cte2 AS (SELECT id, value FROM t2) SELECT c1.id, c1.name, c2.value FROM cte1 c1 JOIN cte2 c2 ON c1.id = c2.id"},
-		{"WITH CTE in subquery", "SELECT * FROM (WITH cte AS (SELECT id FROM t1) SELECT * FROM cte) AS sub"},
-
-		// DDL - 表结构
-		{"CREATE TABLE", "CREATE TABLE t3 (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(64) NOT NULL DEFAULT 'x' COMMENT '名称', value DECIMAL(10,2) UNSIGNED, created_at DATETIME, KEY idx_name (name), UNIQUE KEY uk_val (value), CONSTRAINT fk_t3 FOREIGN KEY (id) REFERENCES t1 (id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='测试表'"},
-		{"CREATE TABLE IF NOT EXISTS", "CREATE TABLE IF NOT EXISTS t4 (id INT PRIMARY KEY)"},
-		{"CREATE TABLE AS SELECT", "CREATE TABLE t5 AS SELECT id, name FROM t1"},
-		{"CREATE TABLE LIKE", "CREATE TABLE t6 LIKE t1"},
-		{"ALTER TABLE add column", "ALTER TABLE t1 ADD COLUMN extra INT NOT NULL DEFAULT 0"},
-		{"ALTER TABLE drop column", "ALTER TABLE t1 DROP COLUMN extra"},
-		{"ALTER TABLE modify column", "ALTER TABLE t1 MODIFY COLUMN name VARCHAR(128)"},
-		{"ALTER TABLE rename column", "ALTER TABLE t1 RENAME COLUMN name TO nickname"},
-		{"ALTER TABLE multi actions", "ALTER TABLE t1 ADD COLUMN a INT, DROP COLUMN b, MODIFY COLUMN c VARCHAR(10)"},
-		{"ALTER TABLE add index", "ALTER TABLE t1 ADD INDEX idx_status (status)"},
-		{"ALTER TABLE add foreign key", "ALTER TABLE t1 ADD CONSTRAINT fk_1 FOREIGN KEY (id) REFERENCES t2 (id)"},
-		{"DROP TABLE", "DROP TABLE IF EXISTS t3, t4"},
-		{"RENAME TABLE", "RENAME TABLE t5 TO t7, t6 TO t8"},
-		{"TRUNCATE TABLE", "TRUNCATE TABLE t7"},
-		{"CREATE INDEX", "CREATE UNIQUE INDEX idx_u ON t1 (id, status)"},
-		{"DROP INDEX", "DROP INDEX idx_u ON t1"},
-
-		// 视图
-		{"CREATE VIEW", "CREATE VIEW v1 AS SELECT id, name FROM t1 WHERE status = 1"},
-		{"CREATE OR REPLACE VIEW", "CREATE OR REPLACE VIEW v1 AS SELECT id FROM t1"},
-		{"CREATE VIEW with columns", "CREATE VIEW v2 (a, b) AS SELECT id, name FROM t1"},
-		{"DROP VIEW", "DROP VIEW IF EXISTS v1, v2"},
-
-		// 存储过程
-		{"CREATE PROCEDURE", "CREATE PROCEDURE p1(IN a INT, OUT b VARCHAR(20), INOUT c INT) BEGIN SET b = 'x'; SELECT a INTO c FROM t1 LIMIT 1; END"},
-		{"CREATE PROCEDURE simple", "CREATE PROCEDURE p2() SELECT 1"},
-		{"CALL", "CALL p1(1, @out, @inout)"},
-		{"DROP PROCEDURE", "DROP PROCEDURE IF EXISTS p1"},
-
-		// 触发器
-		{"CREATE TRIGGER", "CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.name = 'x'"},
-		{"CREATE TRIGGER with body", "CREATE TRIGGER trg2 AFTER UPDATE ON t1 FOR EACH ROW BEGIN SET @a = 1; SET @b = 2; END"},
-		{"DROP TRIGGER", "DROP TRIGGER IF EXISTS trg1"},
-
-		// 函数（vitess 不支持语法，由自研解析器处理）
-		{"CREATE FUNCTION", "CREATE FUNCTION f1(p INT) RETURNS INT DETERMINISTIC BEGIN RETURN p + 1; END"},
-		{"CREATE FUNCTION simple", "CREATE FUNCTION f2(p VARCHAR(10)) RETURNS VARCHAR(20) NO SQL RETURN CONCAT(p, 'x')"},
-		{"DROP FUNCTION", "DROP FUNCTION IF EXISTS f1"},
-
-		// 其它
-		{"SET", "SET @a = 1"},
-		{"USE", "USE test"},
-		{"SHOW TABLES", "SHOW TABLES"},
-		{"SHOW CREATE TABLE", "SHOW CREATE TABLE t1"},
-	}
-
-	for _, tc := range testCases {
-		fmt.Println("=" + tc.name + ": " + tc.sql)
-		parseAndPrint(ctx, engine, tc.sql)
-		fmt.Println()
-	}
-
-	// 表结构自省：从 catalog 读取真实表结构
-	fmt.Println("===== 表结构自省 describeTable =====")
-	details, err := describeTable(ctx, engine.Analyzer.Catalog, "test", "t1")
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-	} else {
-		jsonOutput, _ := json.MarshalIndent(details, "", "  ")
-		fmt.Println(string(jsonOutput))
-	}
-}
-
-func createTestTables(db *memory.Database) {
-	// t1 表 - 带主键
-	t1 := memory.NewTable(db.BaseDatabase, "t1", sql.NewPrimaryKeySchema(sql.Schema{
-		{Name: "id", Type: types.Int64, Source: "t1", PrimaryKey: true},
-		{Name: "name", Type: types.Text, Source: "t1"},
-		{Name: "value", Type: types.Int64, Source: "t1"},
-		{Name: "status", Type: types.Int64, Source: "t1"},
-		{Name: "x", Type: types.Int64, Source: "t1"},
-		{Name: "category", Type: types.Text, Source: "t1"},
-	}), db.GetForeignKeyCollection())
-	db.AddTable("t1", t1)
-
-	// t2 表 - 带主键
-	t2 := memory.NewTable(db.BaseDatabase, "t2", sql.NewPrimaryKeySchema(sql.Schema{
-		{Name: "id", Type: types.Int64, Source: "t2", PrimaryKey: true},
-		{Name: "name", Type: types.Text, Source: "t2"},
-		{Name: "value", Type: types.Int64, Source: "t2"},
-		{Name: "status", Type: types.Int64, Source: "t2"},
-	}), db.GetForeignKeyCollection())
-	db.AddTable("t2", t2)
-}
-
-// parseAndPrint 解析并打印 SQL 的结构化描述。
-//
-// 解析分两层：
-//  1. AST 层（vitess）——纯语法解析，不依赖 catalog，能处理 DDL/视图/存储过程/触发器，
-//     也能解析 catalog 中不存在的表。
-//  2. plan 层（analyzer）——语义分析，需要真实表结构，能展开 SELECT *、
-//     解析出实际的主键/索引等语义信息。
-//
-// 策略：AST 层能处理时优先用 AST 层（覆盖面更广、不依赖表）；
-// AST 层不处理或失败时回退到 plan 层。
-func parseAndPrint(ctx *sql.Context, engine *sqle.Engine, sqlStr string) {
-	stmt, err := parseSQL(ctx, engine, sqlStr)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
-	}
-	jsonOutput, err := json.MarshalIndent(stmt, "", "  ")
-	if err != nil {
-		fmt.Printf("JSON error: %v\n", err)
-		return
-	}
-	fmt.Println(string(jsonOutput))
+	Offset  int      `json:"offset,omitempty"`
 }
 
 // parseSQL 解析 SQL 并返回结构化结果。
 //
-// 分派策略：
-//   - CREATE FUNCTION：vitess 不支持语法，走自研解析器
-//   - DML/DQL（SELECT/INSERT/UPDATE/DELETE）：优先 plan 层，能拿到语义增强信息
-//     （如 SELECT * 展开、列名限定）；表不存在导致 plan 失败时回退 AST 层
-//   - DDL/视图/存储过程/触发器等：走 AST 层，plan 层在这些场景信息更少
-//     （如 CreateProcedure 不暴露参数与 body 结构）且强依赖 catalog
-func parseSQL(ctx *sql.Context, engine *sqle.Engine, sqlStr string) (*SQLStatement, error) {
-	// CREATE FUNCTION 在 vitess 语法层不支持，需要自己解析
-	if fn := parseCreateFunction(sqlStr); fn != nil {
-		return &SQLStatement{Type: "CreateFunction", Details: fn}, nil
+// 分派策略（**AST 层是唯一的输出源**）：
+//   - AST 层（vitess 语法层）：纯语法解析，不需要 catalog，能解析任意语句，
+//     包括 catalog 里根本不存在的表。这是主力路径。
+//   - 手写解析器：vitess 没有语法的语句（CREATE/DROP FUNCTION、DO、
+//     OPTIMIZE/CHECK/CHECKSUM/REPAIR TABLE、SET PASSWORD）。
+//   - plan 层（analyzer 语义层）：**只作为可选增强**——在传入了 catalog 时
+//     把 SELECT * 展开成具体列。这是 AST 层唯一补不上的信息。
+//     没有 catalog 时完全不用它，engine 传 nil 即可。
+//
+// 为什么不让 plan 层做主力：它强依赖 catalog（表必须真实存在且有主键），
+// 而真实场景是用户随手给一条 SQL，解析器既不知道表结构也没权限查库；
+// 而且 plan 层的输出更粗——会丢掉 DISTINCT / OFFSET / CTE / 集合运算，
+// JOIN 的 from 还会渲染成树形 dump。输出格式必须与表是否存在无关。
+// Parse 纯语法解析一条 SQL，返回结构化结果。
+//
+// 这是最常用的入口：**不需要 catalog、不需要表结构、不需要任何权限**，
+// 用户给什么 SQL 就解析什么——包括表根本不存在的语句。
+//
+//	stmt, err := sqltree.Parse("SELECT id FROM t WHERE a = 1")
+//	if err != nil { ... }
+//	fmt.Println(stmt.Type)              // "Select"
+//	fmt.Println(stmt.Details)          // *sqltree.SelectDetails
+//
+// 需要更多能力时用 ParseSQL（可传 engine 打开 SELECT * 展开等增强）。
+func Parse(sqlStr string) (*SQLStatement, error) {
+	return ParseSQL(nil, nil, sqlStr)
+}
+
+func ParseSQL(ctx *sql.Context, engine *sqle.Engine, sqlStr string) (*SQLStatement, error) {
+	// 归一化：去掉注释。
+	//
+	// 注释可以出现在任何位置、任何写法（-- / # / /* */ / /*! */），
+	// MySQL 执行时不会把它们当语句，所以解析结果里也不该有。
+	// 统一在入口处理一次，下游的 vitess 与自研扫描器看到的都是同一份干净文本。
+	sqlStr = stripSQLComments(sqlStr)
+
+	// plan 层（语义分析）必须要有 ctx：go-mysql-server 内部会调用
+	// sql.LoadSqlMode(ctx)，ctx 为 nil 时直接空指针 panic。
+	// 调用方若只想用 AST 层，传 nil ctx 即可；这里直接把 engine 也一并忽略，
+	// 避免"传了 engine 但没传 ctx"这种半截调用把进程搞崩。
+	if ctx == nil {
+		engine = nil
 	}
 
-	ast, astErr := parseAST(sqlStr)
+	// vitess 语法层不支持的语句（CREATE/DROP FUNCTION、DO、
+	// OPTIMIZE/CHECK/CHECKSUM/REPAIR TABLE、SET PASSWORD）走自研解析器。
+	//
+	// 注意：多语句脚本里的每一条也走同一套（见 parseSingleStatement），
+	// 保证"单独解析"与"放进脚本里"行为一致。
+	if stmt := parseHandWritten(sqlStr); stmt != nil {
+		return stmt, nil
+	}
+
+	// 多语句：vitess 的 Parse 只接受单条语句
+	if statements, ok := parseMultiStatement(sqlStr); ok {
+		return statements, nil
+	}
+
+	ast, astCtx, astErr := parseAST(sqlStr)
 	var astStmt *ASTStatement
 	if astErr == nil {
-		astStmt = extractASTStatement(ast)
-	}
-
-	// DML/DQL 优先用 plan 层拿语义增强信息，失败再回退 AST 层
-	if isDMLType(astStmt) && engine != nil {
-		if stmt, err := parseViaPlan(ctx, engine, sqlStr); err == nil {
-			return stmt, nil
-		}
+		astStmt = extractASTStatement(ast, astCtx)
 	}
 	if astStmt != nil {
-		return &SQLStatement{Type: astStmt.Type, Details: astStmt.Details}, nil
+		stmt := &SQLStatement{Type: astStmt.Type, Details: astStmt.Details}
+		// 有 catalog 时用 plan 层补上 SELECT * 的展开结果；没有 catalog 就跳过
+		if engine != nil {
+			enrichStarColumns(ctx, engine, sqlStr, stmt)
+		}
+		return stmt, nil
 	}
 
-	// AST 层不支持，回退到 plan 层
+	// AST 层不支持，回退到 plan 层（需要 catalog）
 	if engine == nil {
 		return nil, fmt.Errorf("无法解析该语句：AST 层不支持，且未提供 catalog 无法做语义分析")
 	}
@@ -276,16 +160,62 @@ func parseSQL(ctx *sql.Context, engine *sqle.Engine, sqlStr string) (*SQLStateme
 	return stmt, nil
 }
 
-// isDMLType 判断是否为 DML/DQL 语句（这类语句优先走 plan 层）。
-func isDMLType(stmt *ASTStatement) bool {
-	if stmt == nil {
-		return false
+// enrichStarColumns 用 plan 层把 SELECT * 展开成具体的列。
+//
+// 这是 AST 层唯一补不上的信息：AST 是纯语法解析，不知道表里有哪些列。
+// 只有传入了 catalog 时才做；没有 catalog 时保持 "*" 原样。
+//
+// 只处理"投影列表恰好只有一个 *"的情况——多列混合时 plan 层的展开结果
+// 与 AST 的投影项对不上位，硬拼会错位，宁可不动。
+func enrichStarColumns(ctx *sql.Context, engine *sqle.Engine, sqlStr string, stmt *SQLStatement) {
+	// 先看有没有 "*" 要展开，没有就别去跑语义分析了
+	var target *SelectDetails
+	switch details := stmt.Details.(type) {
+	case *SelectDetails:
+		target = details
+	case *InsertDetails:
+		target = details.SelectData
 	}
-	switch stmt.Type {
-	case "Select", "Insert", "Update", "Delete":
-		return true
+	if target == nil || !hasStarProjection(target) {
+		return
 	}
-	return false
+
+	planStmt, err := parseViaPlan(ctx, engine, sqlStr)
+	if err != nil || planStmt == nil {
+		return
+	}
+	switch details := stmt.Details.(type) {
+	case *SelectDetails:
+		if planDetails, ok := planStmt.Details.(*SelectDetails); ok {
+			applyStarExpansion(details, planDetails)
+		}
+	case *InsertDetails:
+		// INSERT ... SELECT 的子查询
+		if details.SelectData == nil {
+			return
+		}
+		planDetails, ok := planStmt.Details.(*InsertDetails)
+		if !ok || planDetails.SelectData == nil {
+			return
+		}
+		applyStarExpansion(details.SelectData, planDetails.SelectData)
+	}
+}
+
+// hasStarProjection 判断投影列表里是否只有一个 "*"。
+func hasStarProjection(details *SelectDetails) bool {
+	return len(details.SelectedExprs) == 1 && details.SelectedExprs[0] == "*"
+}
+
+// applyStarExpansion 把 details 里唯一的 "*" 换成 plan 层展开出的列。
+func applyStarExpansion(details *SelectDetails, planDetails *SelectDetails) {
+	if len(details.SelectedExprs) != 1 || details.SelectedExprs[0] != "*" {
+		return
+	}
+	if len(planDetails.SelectedExprs) == 0 {
+		return
+	}
+	details.SelectedExprs = planDetails.SelectedExprs
 }
 
 // parseViaPlan 走 plan 层（语义分析）解析 SQL。
@@ -313,13 +243,132 @@ func parseViaPlan(ctx *sql.Context, engine *sqle.Engine, sqlStr string) (*SQLSta
 			Details: extractDeleteDetails(node),
 		}
 	default:
-		sqlStmt = SQLStatement{
-			Type:    "Select",
-			Details: extractSelectDetails(analyzedNode),
-		}
+		sqlStmt = planNodeToStatement(analyzedNode)
 	}
 
 	return &sqlStmt, nil
+}
+
+// planNodeToStatement 把 plan 层的节点转成结构化描述。
+//
+// 这是 AST 层不支持、只能回退到 plan 层时的最后一档。
+//
+// 关键点：**不能一律标成 "Select"**。旧实现把除 DML 之外的所有节点
+// 都标成 Select，于是 `CREATE DATABASE d` 在有 catalog 时会返回
+// {"type":"Select","details":{}}——调用方会把 DDL 当查询处理，
+// 而且同一条语句"无 catalog 报错、有 catalog 变成 Select"，行为不一致。
+func planNodeToStatement(node sql.Node) SQLStatement {
+	switch n := node.(type) {
+	case *plan.CreateDB:
+		return SQLStatement{Type: "CreateDatabase", Details: map[string]string{
+			"database": n.DbName,
+		}}
+	case *plan.CreateTable:
+		return SQLStatement{Type: "CreateTable", Details: map[string]string{
+			"table": planNodeName(n),
+		}}
+	case *plan.DropTable:
+		return SQLStatement{Type: "Drop", Details: map[string]string{
+			"kind": "table",
+		}}
+	case *plan.CreateView:
+		return SQLStatement{Type: "CreateView", Details: map[string]string{
+			"name": n.Name,
+		}}
+	case *plan.CreateIndex:
+		return SQLStatement{Type: "CreateIndex", Details: map[string]string{
+			"name":  n.Name,
+			"table": planNodeName(n.Table),
+		}}
+	case *plan.DropIndex:
+		return SQLStatement{Type: "DropIndex", Details: map[string]string{
+			"name":  n.Name,
+			"table": planNodeName(n.Table),
+		}}
+	case *plan.Truncate:
+		return SQLStatement{Type: "Truncate", Details: map[string]string{
+			"table": planNodeName(n.Child),
+		}}
+	case *plan.ShowTables:
+		return SQLStatement{Type: "Show", Details: map[string]string{
+			"show": "tables",
+		}}
+	case *plan.ShowDatabases:
+		return SQLStatement{Type: "Show", Details: map[string]string{
+			"show": "databases",
+		}}
+	case *plan.ShowColumns:
+		return SQLStatement{Type: "Show", Details: map[string]string{
+			"show": "columns",
+		}}
+	case *plan.ShowVariables:
+		return SQLStatement{Type: "Show", Details: map[string]string{
+			"show": "variables",
+		}}
+	case *plan.ShowStatus:
+		return SQLStatement{Type: "Show", Details: map[string]string{
+			"show": "status",
+		}}
+	case *plan.ShowCreateTable:
+		return SQLStatement{Type: "Show", Details: map[string]string{
+			"show":  "create table",
+			"table": planNodeName(n.Child),
+		}}
+	case *plan.ShowCreateDatabase:
+		return SQLStatement{Type: "Show", Details: map[string]string{
+			"show": "create database",
+		}}
+	case *plan.ShowCreateProcedure:
+		return SQLStatement{Type: "Show", Details: map[string]string{
+			"show": "create procedure",
+			"name": n.ProcedureName,
+		}}
+	case *plan.ShowCreateTrigger:
+		return SQLStatement{Type: "Show", Details: map[string]string{
+			"show": "create trigger",
+			"name": n.TriggerName,
+		}}
+	case *plan.Set:
+		return SQLStatement{Type: "Set", Details: map[string]string{
+			"set": node.String(),
+		}}
+	case *plan.Use:
+		name := ""
+		if db := n.Database(); db != nil {
+			name = db.Name()
+		}
+		return SQLStatement{Type: "Use", Details: map[string]string{
+			"database": name,
+		}}
+	case *plan.StartTransaction:
+		return SQLStatement{Type: "Begin", Details: map[string]string{}}
+	case *plan.Commit:
+		return SQLStatement{Type: "Commit", Details: map[string]string{}}
+	case *plan.Rollback:
+		return SQLStatement{Type: "Rollback", Details: map[string]string{}}
+	default:
+		// 认不出来的节点：当作查询处理，但保留原始文本，
+		// 至少让调用方知道语句原文，而不是拿到一个空壳。
+		details := extractSelectDetails(node)
+		if details == nil {
+			details = &SelectDetails{}
+		}
+		return SQLStatement{Type: "Select", Details: details}
+	}
+}
+
+// planNodeName 尽力从 plan 节点里取表名/库名。
+//
+// go-mysql-server 的很多节点把名字放在未导出的字段里，
+// 拿不到就退回节点的字符串表示（至少不是空的）。
+func planNodeName(node sql.Node) string {
+	if node == nil {
+		return ""
+	}
+	if table, ok := node.(*plan.ResolvedTable); ok {
+		return table.Name()
+	}
+	return node.String()
 }
 
 func extractSelectDetails(node sql.Node) *SelectDetails {

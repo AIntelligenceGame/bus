@@ -1,4 +1,4 @@
-package main
+package sqltree
 
 import (
 	"fmt"
@@ -9,13 +9,13 @@ import (
 
 // TableSchemaDetails 表示一张表的结构信息。
 type TableSchemaDetails struct {
-	Table       string              `json:"table"`
-	Database    string              `json:"database,omitempty"`
-	Columns     []SchemaColumn      `json:"columns"`
-	PrimaryKey  []string            `json:"primary_key,omitempty"`
-	Indexes     []SchemaIndex       `json:"indexes,omitempty"`
-	ForeignKeys []SchemaForeignKey  `json:"foreign_keys,omitempty"`
-	Comment     string              `json:"comment,omitempty"`
+	Table       string             `json:"table"`
+	Database    string             `json:"database,omitempty"`
+	Columns     []SchemaColumn     `json:"columns"`
+	PrimaryKey  []string           `json:"primary_key,omitempty"`
+	Indexes     []SchemaIndex      `json:"indexes,omitempty"`
+	ForeignKeys []SchemaForeignKey `json:"foreign_keys,omitempty"`
+	Comment     string             `json:"comment,omitempty"`
 }
 
 // SchemaColumn 表示表中的一列。
@@ -34,15 +34,17 @@ type SchemaColumn struct {
 }
 
 // SchemaIndex 表示表上的一个索引。
+//
+// 函数索引（`KEY idx ((expr))`）的表达式也放在 Columns 里——
+// go-mysql-server 的索引接口只给 Expressions()，没有单独的"表达式"字段。
 type SchemaIndex struct {
-	Name       string   `json:"name"`
-	Columns    []string `json:"columns"`
-	Unique     bool     `json:"unique,omitempty"`
-	Primary    bool     `json:"primary,omitempty"`
-	FullText   bool     `json:"fulltext,omitempty"`
-	Spatial    bool     `json:"spatial,omitempty"`
-	Type       string   `json:"type,omitempty"`
-	Expression string   `json:"expression,omitempty"`
+	Name     string   `json:"name"`
+	Columns  []string `json:"columns"`
+	Unique   bool     `json:"unique,omitempty"`
+	Primary  bool     `json:"primary,omitempty"`
+	FullText bool     `json:"fulltext,omitempty"`
+	Spatial  bool     `json:"spatial,omitempty"`
+	Type     string   `json:"type,omitempty"`
 }
 
 // SchemaForeignKey 表示表上的一个外键。
@@ -57,7 +59,10 @@ type SchemaForeignKey struct {
 
 // describeTable 从 catalog 读取表的结构信息。
 // 与 AST 层的 CREATE TABLE 解析不同，这里读的是数据库中真实存在的表。
-func describeTable(ctx *sql.Context, catalog sql.Catalog, dbName, tableName string) (*TableSchemaDetails, error) {
+func DescribeTable(ctx *sql.Context, catalog sql.Catalog, dbName, tableName string) (*TableSchemaDetails, error) {
+	if catalog == nil {
+		return nil, fmt.Errorf("DescribeTable 需要 catalog：没有 catalog 就无法查表结构")
+	}
 	db, err := catalog.Database(ctx, dbName)
 	if err != nil {
 		return nil, err
@@ -76,6 +81,11 @@ func describeTable(ctx *sql.Context, catalog sql.Catalog, dbName, tableName stri
 		Columns:     []SchemaColumn{},
 		Indexes:     []SchemaIndex{},
 		ForeignKeys: []SchemaForeignKey{},
+	}
+
+	// 表注释：只有实现了 CommentedTable 的表才有
+	if commented, ok := table.(sql.CommentedTable); ok {
+		details.Comment = commented.Comment()
 	}
 
 	schema := table.Schema()
@@ -108,38 +118,40 @@ func describeTable(ctx *sql.Context, catalog sql.Catalog, dbName, tableName stri
 	// 索引：表实现了 IndexAddressable 才能拿到
 	if indexable, ok := table.(sql.IndexAddressable); ok {
 		indexes, err := indexable.GetIndexes(ctx)
-		if err == nil {
-			for _, idx := range indexes {
-				if idx.IsGenerated() {
-					continue
-				}
-				details.Indexes = append(details.Indexes, SchemaIndex{
-					Name:     idx.ID(),
-					Columns:  idx.Expressions(),
-					Unique:   idx.IsUnique(),
-					Primary:  strings.EqualFold(idx.ID(), "primary"),
-					FullText: idx.IsFullText(),
-					Spatial:  idx.IsSpatial(),
-					Type:     idx.IndexType(),
-				})
+		if err != nil {
+			return nil, fmt.Errorf("读取表 %s.%s 的索引失败: %w", dbName, tableName, err)
+		}
+		for _, idx := range indexes {
+			if idx.IsGenerated() {
+				continue
 			}
+			details.Indexes = append(details.Indexes, SchemaIndex{
+				Name:     idx.ID(),
+				Columns:  idx.Expressions(),
+				Unique:   idx.IsUnique(),
+				Primary:  strings.EqualFold(idx.ID(), "primary"),
+				FullText: idx.IsFullText(),
+				Spatial:  idx.IsSpatial(),
+				Type:     idx.IndexType(),
+			})
 		}
 	}
 
 	// 外键：表实现了 ForeignKeyTable 才能拿到
 	if fkTable, ok := table.(sql.ForeignKeyTable); ok {
 		fks, err := fkTable.GetDeclaredForeignKeys(ctx)
-		if err == nil {
-			for _, fk := range fks {
-				details.ForeignKeys = append(details.ForeignKeys, SchemaForeignKey{
-					Name:              fk.Name,
-					Columns:           fk.Columns,
-					ReferencedTable:   fk.ParentTable,
-					ReferencedColumns: fk.ParentColumns,
-					OnDelete:          string(fk.OnDelete),
-					OnUpdate:          string(fk.OnUpdate),
-				})
-			}
+		if err != nil {
+			return nil, fmt.Errorf("读取表 %s.%s 的外键失败: %w", dbName, tableName, err)
+		}
+		for _, fk := range fks {
+			details.ForeignKeys = append(details.ForeignKeys, SchemaForeignKey{
+				Name:              fk.Name,
+				Columns:           fk.Columns,
+				ReferencedTable:   fk.ParentTable,
+				ReferencedColumns: fk.ParentColumns,
+				OnDelete:          string(fk.OnDelete),
+				OnUpdate:          string(fk.OnUpdate),
+			})
 		}
 	}
 

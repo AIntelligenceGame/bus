@@ -1,7 +1,8 @@
-package main
+package sqltree
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -77,7 +78,12 @@ and end_time = '2026-10-23 08:00:00';`
 
 	// 用现有提取逻辑
 	fmt.Println("\n=== 提取结果 ===")
-	parseAndPrint(ctx, engine, sqlStr)
+	if stmt, err := ParseSQL(ctx, engine, sqlStr); err != nil {
+		t.Fatalf("ParseSQL error: %v", err)
+	} else {
+		out, _ := json.MarshalIndent(stmt, "", "  ")
+		fmt.Println(string(out))
+	}
 
 	// 检查 WHERE 表达式细节
 	fmt.Println("\n=== WHERE 表达式细节 ===")

@@ -1,4 +1,4 @@
-package main
+package sqltree
 
 import (
 	"fmt"
@@ -58,6 +58,54 @@ func matchCharacteristic(text string) (string, string) {
 		return strings.ToUpper(keyword), strings.TrimSpace(rest)
 	}
 	return "", text
+}
+
+// parseDropFunction 尝试把 SQL 解析为 DROP FUNCTION 语句。
+// vitess 语法层不支持函数（CREATE/DROP 都不支持），DROP FUNCTION 走这里。
+// 若不是 DROP FUNCTION，返回 nil。
+func parseDropFunction(sqlStr string) *DropDetails {
+	rest := strings.TrimSpace(sqlStr)
+	lower := strings.ToLower(rest)
+
+	if !strings.HasPrefix(lower, "drop ") {
+		return nil
+	}
+	rest = strings.TrimSpace(rest[len("drop"):])
+	lower = strings.ToLower(rest)
+
+	if !strings.HasPrefix(lower, "function ") {
+		return nil
+	}
+	rest = strings.TrimSpace(rest[len("function"):])
+	lower = strings.ToLower(rest)
+
+	ifExists := false
+	if strings.HasPrefix(lower, "if exists") {
+		ifExists = true
+		rest = strings.TrimSpace(rest[len("if exists"):])
+		lower = strings.ToLower(rest)
+	}
+
+	names := []string{}
+	for _, part := range splitTopLevel(rest, ',') {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		name, _, ok := scanIdentifier(part)
+		if !ok {
+			continue
+		}
+		names = append(names, name)
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	return &DropDetails{
+		Objects:  names,
+		Kind:     "function",
+		IfExists: ifExists,
+	}
 }
 
 // parseCreateFunction 尝试把 SQL 解析为 CREATE FUNCTION 语句。

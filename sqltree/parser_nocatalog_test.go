@@ -1,4 +1,4 @@
-package main
+package sqltree
 
 import (
 	"encoding/json"
@@ -192,7 +192,7 @@ func TestParseWithoutCatalog(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			// 关键：不建任何 engine / catalog，engine 传 nil
-			stmt, err := parseSQL(nil, nil, tc.sql)
+			stmt, err := ParseSQL(nil, nil, tc.sql)
 			if err != nil {
 				t.Fatalf("解析失败: %v\nSQL: %s", err, tc.sql)
 			}
@@ -216,4 +216,39 @@ func renderDetails(details any) string {
 		return ""
 	}
 	return string(out)
+}
+
+// TestSetOpBranchesKeepDetails 验证集合运算各分支的表名与条件不会丢。
+//
+// 旧实现里 UNION 只保留了合并后的投影列，
+// `SELECT a FROM t1 WHERE x=1 UNION SELECT b FROM t2 WHERE y=2`
+// 里两个分支的 FROM/WHERE 全丢了——调用方根本不知道查了哪两张表。
+func TestSetOpBranchesKeepDetails(t *testing.T) {
+	stmt, err := Parse("SELECT a FROM t1 WHERE x = 1 UNION SELECT b FROM t2 WHERE y = 2")
+	if err != nil {
+		t.Fatalf("解析失败: %v", err)
+	}
+	details, ok := stmt.Details.(*SelectDetails)
+	if !ok {
+		t.Fatalf("details 类型 = %T", stmt.Details)
+	}
+	if details.SetOp != "union" {
+		t.Errorf("SetOp = %q, 期望 %q", details.SetOp, "union")
+	}
+	if len(details.SetOpBranches) != 2 {
+		t.Fatalf("SetOpBranches 长度 = %d, 期望 2", len(details.SetOpBranches))
+	}
+	left, right := details.SetOpBranches[0], details.SetOpBranches[1]
+	if left.From != "t1" {
+		t.Errorf("左分支 From = %q, 期望 %q", left.From, "t1")
+	}
+	if right.From != "t2" {
+		t.Errorf("右分支 From = %q, 期望 %q", right.From, "t2")
+	}
+	if !strings.Contains(left.Where, "x = 1") {
+		t.Errorf("左分支 Where = %q, 期望包含 %q", left.Where, "x = 1")
+	}
+	if !strings.Contains(right.Where, "y = 2") {
+		t.Errorf("右分支 Where = %q, 期望包含 %q", right.Where, "y = 2")
+	}
 }
