@@ -1,0 +1,63 @@
+# bus/payment 支付配置示例
+#
+# 用法:
+#   client, err := pay.LoadConfigFile("./payment/config.yaml")
+#
+# 说明:
+#   - 金额单位统一为「分」,不在配置里出现;
+#   - 私钥/公钥建议用 \n 转义的多行字符串,或改为从环境变量注入;
+#   - 未配置的渠道不会被注册,调用时返回 "channel not registered"。
+
+payment:
+  wechat:
+    app_id: "wx1234567890abcdef"
+    mch_id: "1900000109"
+    serial_no: "1DDE55AD98ED71D6EDD4A4A16996DE7B47773A8C"
+    # 商户 API 证书私钥(apiclient_key.pem)
+    private_key_pem: |
+      -----BEGIN PRIVATE KEY-----
+      MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ...
+      -----END PRIVATE KEY-----
+    # APIv3 密钥,必须 32 字节
+    api_v3_key: "0123456789abcdef0123456789abcdef"
+    notify_url: "https://pay.example.com/notify/wechat"
+    # 平台证书缓存目录
+    cert_dir: "./certs"
+    # 首次启动自动下载微信平台证书
+    auto_fetch_certs: true
+    timeout: "10s"
+
+  alipay:
+    app_id: "2021000000000000"
+    # 应用私钥(app_private_key.pem)
+    private_key_pem: |
+      -----BEGIN RSA PRIVATE KEY-----
+      MIIEowIBAAKCAQEA...
+      -----END RSA PRIVATE KEY-----
+    # 支付宝公钥(alipay_public_key.pem)
+    alipay_public_key_pem: |
+      -----BEGIN PUBLIC KEY-----
+      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
+      -----END PUBLIC KEY-----
+    notify_url: "https://pay.example.com/notify/alipay"
+    return_url: "https://pay.example.com/pay/result"
+    timeout: "10s"
+
+  applepay:
+    merchant_id: "merchant.com.example"
+    display_name: "示例商城"
+    domain_name: "pay.example.com"
+    currency: "CNY"
+    stripe:
+      secret_key: "sk_test_xxxxxxxx"
+      publishable_key: "pk_test_xxxxxxxx"
+      webhook_secret: "whsec_xxxxxxxx"
+
+  googlepay:
+    merchant_id: "1234567890"
+    display_name: "示例商城"
+    currency: "CNY"
+    stripe:
+      secret_key: "sk_test_xxxxxxxx"
+      publishable_key: "pk_test_xxxxxxxx"
+      webhook_secret: "whsec_xxxxxxxx"

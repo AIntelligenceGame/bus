@@ -1,0 +1,8 @@
+# 前端构建产物目录。
+#
+# 由 bus/payment-web 执行 `npm run build` 后写入:
+#   index.html
+#   assets/app-<hash>.js
+#   assets/app-<hash>.css
+#
+# 产物由 Go 端 //go:embed 打进二进制,消费方拿到的不是前端源码。

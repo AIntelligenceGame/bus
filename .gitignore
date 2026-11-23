@@ -24,5 +24,38 @@ target/
 configdevx.yaml
 config.yaml
 log.*
+testdata/
+
+# 前端(bus/payment-web)依赖与构建中间产物
+node_modules/
+payment-web/.vite/
+payment-web/*.tsbuildinfo
+payment-web/npm-debug.log*
+payment-web/yarn-error.log*
+payment-web/.npm/
+
+# 前端**打包产物**(bus/payment-web 构建出来的,落在 payment/platform/web/dist)
+#
+# 这份产物不进库:Go 端 //go:embed 会在编译时把它打进二进制,
+# 所以提交它等于把同一份 JS 存两遍。
+# 构建:cd bus/payment-web && npm run build(或 make build-frontend)。
+# 只留 .gitkeep —— 目录不在,//go:embed 会直接编译失败。
+payment/platform/web/dist/assets/
+payment/platform/web/dist/index.html
+
+# 支付平台运行时产物(SQLite 库、主密钥文件、微信平台证书缓存)
+payment-data/
+certs/
+*.pem
+*.key
+*.crt
+# 测试用固定证书/密钥属于源码,例外放行
+!payment/**/testdata/*.pem
+!payment/**/testdata/*.crt
+!payment/**/testdata/*.key
+
+# 临时联调脚本(里面有真实邮箱账号 / 授权码,一律不入库)
+tmp_*.go
+tmp_*
 
 # go mod file
