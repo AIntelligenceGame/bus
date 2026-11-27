@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/hashicorp/golang-lru/v2/expirable"
 )
 
 // 开放接口密钥(API Key)。
@@ -334,33 +336,48 @@ func verifySignature(secret, method, target, timestamp, nonce string, body []byt
 
 // nonceCache 重放防护:记住时间窗口内用过的随机串。
 //
-// 零值可用(内部懒建 map),所以 Platform 不需要额外初始化。
+// 零值可用(内部懒建),所以 Platform 不需要额外初始化。
 type nonceCache struct {
 	mu   sync.Mutex
-	seen map[string]time.Time
+	seen *expirable.LRU[string, struct{}]
 }
 
+// nonceCacheMaxEntries 缓存的随机串上限。
+//
+// 上限必须存在:随机串是**调用方给的**,理论上可以无限多。
+// 没有上限的话,攻击者拿着合法密钥疯狂换随机串,内存就被撑爆了。
+//
+// 取 100000:正常商户 5 分钟窗口内的请求量远小于这个数,
+// 就算被撑满,超限的也只是「最久没用」的那些,窗口内的重放防护基本不受影响。
+const nonceCacheMaxEntries = 100000
+
 // allow 记住一个随机串;时间窗口内重复出现返回 false(即判定为重放)。
+//
+// ttl 只在第一次调用时生效(缓存建好后 TTL 是固定的)。
+// 调用方目前只传 apiKeyTimeWindow,不存在「同一缓存用不同窗口」的情况。
 func (c *nonceCache) allow(key string, ttl time.Duration) bool {
 	if c == nil {
 		return true
 	}
-	now := time.Now()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.seen == nil {
-		c.seen = make(map[string]time.Time)
+		// expirable.LRU 自带 TTL 过期 + LRU 淘汰,查询是 O(1)。
+		//
+		// 以前这里是「map + 每次请求全表扫一遍删过期项」:
+		// 高频调用时表越滚越大,单次请求的代价是 O(表大小),
+		// 总代价 O(请求数 × 表大小) —— 一次 DDoS 就能把 CPU 打满。
+		//
+		// 注意:expirable.LRU 的清理协程**永不退出**(库的限制),
+		// 但整个进程只建一个 Platform,也只建一个缓存,泄漏可以忽略。
+		c.seen = expirable.NewLRU[string, struct{}](nonceCacheMaxEntries, nil, ttl)
 	}
-	// 顺手清理过期条目。
-	for k, exp := range c.seen {
-		if now.After(exp) {
-			delete(c.seen, k)
-		}
-	}
-	if exp, exists := c.seen[key]; exists && now.Before(exp) {
+	// Get 对已过期的条目返回 false(等同于「没见过」),正好符合语义:
+	// 窗口外的随机串可以再次使用,窗口内的必须被拒。
+	if _, ok := c.seen.Get(key); ok {
 		return false
 	}
-	c.seen[key] = now.Add(ttl)
+	c.seen.Add(key, struct{}{})
 	return true
 }
 

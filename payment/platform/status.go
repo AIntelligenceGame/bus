@@ -100,6 +100,21 @@ func refundCountsTowardTotal(status string) bool {
 	return false
 }
 
+// refundCountedWhere 「计入已退金额」的退款状态过滤条件(SQL 片段)。
+//
+// 为什么必须带上 IS NULL:refund_status 是后来才加的那一列,
+// 老库里的存量行在 AutoMigrate 加列之后,这一列的值是 **NULL**
+// (不是空串)。而 refundCountedStatuses 里已经含空串 ——
+// 那是同一批老数据的另一种表现(早期直接存渠道原始状态)。
+// NULL 与 '' 指的是同一批「状态未知、但钱大概率已经出了」的记录。
+//
+// 口径必须**处处一致**:超额退款保护按「已退」拦下第二笔,
+// 报表就必须也按「已退」算。否则商户看着报表说「还能再退 100 元」,
+// 真去退的时候被平台拦掉 —— 钱和账对不上,还得反过来查平台是不是有 bug。
+//
+// 用法:Where("user_id = ? AND " + refundCountedWhere, userID, refundCountedStatuses)
+const refundCountedWhere = "(refund_status IN ? OR refund_status IS NULL)"
+
 // normalizeRefundStatus 把渠道返回的退款状态归一到平台状态。
 //
 // 渠道的状态字符串五花八门(SUCCESS/REFUND_SUCCESS/PROCESSING/CLOSED/ABNORMAL…),

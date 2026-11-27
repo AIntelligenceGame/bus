@@ -3,6 +3,7 @@ package payment
 import (
 	"fmt"
 	"net/url"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -28,6 +29,14 @@ import (
 //	    「1000 字符」说的是 goods_detail[].body,不是这里)
 //	  - passback_params:string(512)
 //	  - out_trade_no:string(64)
+//
+// 币种:
+//	  - 微信支付 APIv3 境内商户号:「CNY:人民币,境内商户号仅支持人民币」。
+//	    跨境(境外收单中心 api.wxpayglobal.com)才支持 ISO 4217 全量币种,
+//	    本库实现的微信渠道走的是境内接口(/v3/refund/domestic/refunds),
+//	    所以币种只能是人民币。
+//	  - 支付宝境内交易接口**没有币种字段**,total_amount 的单位就是「元」(人民币)。
+//	    也就是说传 USD 给支付宝没有意义 —— 金额会被当成人民币扣。
 const (
 	// WechatDescriptionMax 微信 description(商品描述)最大字符数。
 	WechatDescriptionMax = 127
@@ -45,6 +54,10 @@ const (
 	AlipayAttachMax = 512
 	// AlipayOutTradeNoMax 支付宝商户订单号最大字符数。
 	AlipayOutTradeNoMax = 64
+	// WechatCurrency 微信支付境内商户号唯一支持的币种。
+	WechatCurrency = "CNY"
+	// AlipayCurrency 支付宝境内交易接口唯一支持的币种。
+	AlipayCurrency = "CNY"
 )
 
 // WechatDescription 拼出微信实际发出去的 description。
@@ -173,6 +186,39 @@ func ValidateAttach(channel Channel, attach string) error {
 	return nil
 }
 
+// ValidateCurrency 校验币种(按渠道的官方约束)。
+//
+// 空币种 = 用渠道默认币种(人民币),不算错。
+//
+// 非空但不是人民币时**直接报错**,而不是照着传过去:
+//   - 微信境内接口只认 CNY,传 USD 会被微信拒(PARAM_ERROR),
+//     报错信息含糊,商户查起来费劲;
+//   - 支付宝境内交易接口根本没有币种字段,total_amount 的单位就是「元」,
+//     传 USD 会被**当成人民币**扣款 —— 金额直接错 7 倍,还不会有任何报错。
+//
+// 这条卡在共享约束层(和长度、字符集那些放在一起):
+// 平台下单前先拦一道,渠道实现再兜一道,两边口径一致。
+func ValidateCurrency(channel Channel, currency string) error {
+	currency = strings.TrimSpace(currency)
+	if currency == "" {
+		return nil
+	}
+	// 币种代码不区分大小写地比较(ISO 4217 官方是大写,
+	// 但「cny」和「CNY」指的是同一件事,不该为此报错)。
+	if strings.EqualFold(currency, "CNY") {
+		return nil
+	}
+	switch channel {
+	case ChannelWechat:
+		return fmt.Errorf("币种 %s 不被渠道 %s 支持,境内商户号仅支持人民币(%s)",
+			currency, channel, WechatCurrency)
+	case ChannelAlipay:
+		return fmt.Errorf("币种 %s 不被渠道 %s 支持,境内交易接口的金额单位是人民币元(%s)",
+			currency, channel, AlipayCurrency)
+	}
+	return nil
+}
+
 // ValidateChannelOrder 按渠道的官方约束校验整笔订单。
 //
 // 渠道实现在**发请求之前**调用它:直接用库的调用方拿到的就是这个 error,
@@ -193,6 +239,9 @@ func ValidateChannelOrder(channel Channel, o *Order) error {
 		return err
 	}
 	if err := ValidateAttach(channel, o.Attach); err != nil {
+		return err
+	}
+	if err := ValidateCurrency(channel, o.Currency); err != nil {
 		return err
 	}
 	if channel == ChannelWechat {

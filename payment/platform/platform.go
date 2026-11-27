@@ -599,6 +599,25 @@ func (p *Platform) NotifyURL(channel payment.Channel, userID string) string {
 	return p.notifyURLForUser(channel, user, userID)
 }
 
+// spaPaths 是控制台各个页面对应的**路径**入口。
+//
+// 这份清单是「路由注册」和「免登录白名单」的唯一来源:
+// 以前两处各写一份,加页面的时候漏改白名单,直接用路径访问那个页面
+// 就会撞到鉴权中间件拿到 401(而走 #/xxx 哈希路由又正常),
+// 表现为「有的页面刷新就 401,有的页面正常」这种没法解释的现象。
+//
+// 页面本身是纯静态壳子(不含任何商户数据),真正要鉴权的都是
+// /api/... 接口,所以这些路径放行不会泄露任何东西。
+var spaPaths = []string{
+	"/channels",
+	"/playground",
+	"/orders",
+	"/reports",
+	"/apps",
+	"/security",
+	"/keys",
+}
+
 // Handler 返回 HTTP 处理器,可挂载到已有服务。
 func (p *Platform) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -606,13 +625,9 @@ func (p *Platform) Handler() http.Handler {
 	// 前端:Vite + TypeScript 打包产物
 	mux.HandleFunc("GET /{$}", p.handleSPA)
 	mux.HandleFunc("GET /assets/{path...}", p.handleSPA)
-	mux.HandleFunc("GET /channels", p.handleSPA)
-	mux.HandleFunc("GET /playground", p.handleSPA)
-	mux.HandleFunc("GET /orders", p.handleSPA)
-	mux.HandleFunc("GET /reports", p.handleSPA)
-	mux.HandleFunc("GET /apps", p.handleSPA)
-	mux.HandleFunc("GET /security", p.handleSPA)
-	mux.HandleFunc("GET /keys", p.handleSPA)
+	for _, path := range spaPaths {
+		mux.HandleFunc("GET "+path, p.handleSPA)
+	}
 
 	mux.HandleFunc("POST /api/login", p.handleLogin)
 	mux.HandleFunc("POST /api/login/code", p.handleSendLoginCode)
@@ -804,11 +819,13 @@ func (p *Platform) isPublicPath(path string) bool {
 		return true
 	}
 	if strings.HasPrefix(path, "/assets/") ||
-		path == "/favicon.ico" ||
-		path == "/channels" || path == "/playground" ||
-		path == "/orders" || path == "/security" ||
-		path == "/keys" {
+		path == "/favicon.ico" {
 		return true
+	}
+	for _, p := range spaPaths {
+		if path == p {
+			return true
+		}
 	}
 	return false
 }

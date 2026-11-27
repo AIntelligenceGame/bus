@@ -159,10 +159,15 @@ type prepayResponse struct {
 
 // baseBody 构造下单请求公共字段。
 func (p *Provider) baseBody(order *payment.Order) transactionBody {
-	currency := order.Currency
-	if currency == "" {
-		currency = "CNY"
-	}
+	// 币种固定人民币。
+	//
+	// 官方(申请下单接口的 amount.currency):「CNY:人民币,境内商户号仅支持人民币」。
+	// 跨境(境外收单中心)才支持 ISO 4217 全量币种 —— 但本渠道走的是境内接口
+	// (退款是 /v3/refund/domestic/refunds),所以只能是人民币。
+	//
+	// order.Currency 非人民币的订单在 Create 里已经被 payment.ValidateCurrency
+	// 拦掉了(见 ValidateChannelOrder),到这里的只可能是空或 CNY。
+	currency := payment.WechatCurrency
 	notify := order.NotifyURL
 	if notify == "" {
 		notify = p.cfg.NotifyURL
@@ -444,9 +449,17 @@ func (p *Provider) Refund(ctx context.Context, req *payment.RefundRequest) (*pay
 		"out_trade_no":  req.OutTradeNo,
 		"out_refund_no": req.OutRefundNo,
 		"amount": map[string]any{
-			"refund":   refund,
-			"total":    total,
-			"currency": "CNY",
+			"refund": refund,
+			"total":  total,
+			// 境内退款接口(POST /v3/refund/domestic/refunds)的 currency
+			// **目前只支持人民币 CNY** —— 官方文档里就这一种币种可选。
+			// 所以这里写死人民币是符合官方约束的,不是偷懒:
+			// 想要其它币种得走境外收单中心(https://api.wxpayglobal.com/v3/refund/refunds),
+			// 那是另一套接口,本渠道没实现。
+			//
+			// 和下单侧一致:Create 里非人民币的订单已经被 payment.ValidateCurrency
+			// 拦掉了,所以这里不存在「用别的币种退人民币」的错配。
+			"currency": payment.WechatCurrency,
 		},
 	}
 	if req.Reason != "" {

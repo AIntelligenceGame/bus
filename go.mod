@@ -27,6 +27,7 @@ require (
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
 	github.com/hashicorp/consul/api v1.22.0
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/icodeface/grdp v0.0.0-20200414055757-e0008b0b5cb2
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/kardianos/service v1.2.2

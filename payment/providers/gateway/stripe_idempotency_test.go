@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/hashicorp/golang-lru/v2"
 )
 
 // decodeQueryValue 从 URL query 里取一个参数。
@@ -17,6 +19,15 @@ func decodeQueryValue(rawQuery, key string) (string, error) {
 		return "", err
 	}
 	return v.Get(key), nil
+}
+
+// refsWith 造一个预装了若干条「订单号 -> PaymentIntent」映射的缓存。
+func refsWith(m map[string]string) *lru.Cache[string, string] {
+	c := newStripeRefs()
+	for k, v := range m {
+		c.Add(k, v)
+	}
+	return c
 }
 
 // TestStripeChargeUsesStableIdempotencyKey 建 intent 的请求必须带幂等键。
@@ -40,7 +51,7 @@ func TestStripeChargeUsesStableIdempotencyKey(t *testing.T) {
 	s := &Stripe{
 		cfg:    &StripeConfig{SecretKey: "sk_test_x", APIBase: srv.URL},
 		client: srv.Client(),
-		refs:   make(map[string]string),
+		refs:   newStripeRefs(),
 	}
 	for i := 0; i < 2; i++ {
 		if _, err := s.Charge(context.Background(), ChargeRequest{
@@ -93,7 +104,7 @@ func TestStripeChargeConfirmsExistingIntent(t *testing.T) {
 	s := &Stripe{
 		cfg:    &StripeConfig{SecretKey: "sk_test_x", APIBase: srv.URL},
 		client: srv.Client(),
-		refs:   make(map[string]string),
+		refs:   newStripeRefs(),
 	}
 	// 建会话(客户端拿 client_secret 去拉起收银台)。
 	if _, err := s.CreateSession(context.Background(), SessionRequest{
@@ -147,7 +158,7 @@ func TestStripeChargeDoesNotChargeTwiceWhenAlreadySucceeded(t *testing.T) {
 	s := &Stripe{
 		cfg:    &StripeConfig{SecretKey: "sk_test_x", APIBase: srv.URL},
 		client: srv.Client(),
-		refs:   map[string]string{"ORDER-1": "pi_1"},
+		refs:   refsWith(map[string]string{"ORDER-1": "pi_1"}),
 	}
 	res, err := s.Charge(context.Background(), ChargeRequest{
 		OutTradeNo:   "ORDER-1",
@@ -190,7 +201,7 @@ func TestStripeChargeRecreatesCanceledIntent(t *testing.T) {
 	s := &Stripe{
 		cfg:    &StripeConfig{SecretKey: "sk_test_x", APIBase: srv.URL},
 		client: srv.Client(),
-		refs:   map[string]string{"ORDER-1": "pi_1"},
+		refs:   refsWith(map[string]string{"ORDER-1": "pi_1"}),
 	}
 	res, err := s.Charge(context.Background(), ChargeRequest{
 		OutTradeNo:   "ORDER-1",
@@ -247,7 +258,7 @@ func TestStripeSearchUsesQueryString(t *testing.T) {
 	s := &Stripe{
 		cfg:    &StripeConfig{SecretKey: "sk_test_x", APIBase: srv.URL},
 		client: srv.Client(),
-		refs:   make(map[string]string),
+		refs:   newStripeRefs(),
 	}
 	if _, err := s.searchByTradeNo(context.Background(), "ORDER-1"); err != nil {
 		t.Fatalf("searchByTradeNo 失败: %v", err)
@@ -276,7 +287,7 @@ func TestStripeQueryByPaymentIntentID(t *testing.T) {
 	s := &Stripe{
 		cfg:    &StripeConfig{SecretKey: "sk_test_x", APIBase: srv.URL},
 		client: srv.Client(),
-		refs:   make(map[string]string),
+		refs:   newStripeRefs(),
 	}
 	res, err := s.Query(context.Background(), "pi_123")
 	if err != nil {
@@ -306,7 +317,7 @@ func TestStripeSearchEscapesValue(t *testing.T) {
 	s := &Stripe{
 		cfg:    &StripeConfig{SecretKey: "sk_test_x", APIBase: srv.URL},
 		client: srv.Client(),
-		refs:   make(map[string]string),
+		refs:   newStripeRefs(),
 	}
 	if _, err := s.searchByTradeNo(context.Background(), "x' or '1'='1"); err != nil {
 		t.Fatalf("searchByTradeNo 失败: %v", err)

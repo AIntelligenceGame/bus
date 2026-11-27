@@ -995,7 +995,7 @@ func (s *Store) fillRefundedAmounts(userID string, orders []OrderRecord) {
 	var rows []row
 	err := s.db.Model(&RefundModel{}).
 		Select("out_trade_no AS out_trade_no, COALESCE(SUM(amount), 0) AS total").
-		Where("user_id = ? AND out_trade_no IN ? AND (refund_status IN ? OR refund_status IS NULL)",
+		Where("user_id = ? AND out_trade_no IN ? AND "+refundCountedWhere,
 			userID, nos, refundCountedStatuses).
 		Group("out_trade_no").Scan(&rows).Error
 	if err != nil {
@@ -1241,7 +1241,7 @@ func (s *Store) ReserveRefund(rec RefundRecord) (RefundRecord, bool, error) {
 		// 4) 累计已退(含占位与渠道处理中的)。
 		var refunded int64
 		if err := tx.Model(&RefundModel{}).
-			Where("user_id = ? AND out_trade_no = ? AND (refund_status IN ? OR refund_status IS NULL)",
+			Where("user_id = ? AND out_trade_no = ? AND "+refundCountedWhere,
 				rec.UserID, rec.OutTradeNo, refundCountedStatuses).
 			Select("COALESCE(SUM(amount), 0)").Scan(&refunded).Error; err != nil {
 			return fmt.Errorf("platform: sum refunds: %w", err)
@@ -1335,7 +1335,7 @@ func (s *Store) RefundByNo(userID, outRefundNo string) (*RefundRecord, error) {
 func (s *Store) RefundedAmount(userID, outTradeNo string) (int64, error) {
 	var total int64
 	err := s.db.Model(&RefundModel{}).
-		Where("user_id = ? AND out_trade_no = ? AND (refund_status IN ? OR refund_status IS NULL)",
+		Where("user_id = ? AND out_trade_no = ? AND "+refundCountedWhere,
 			userID, outTradeNo, refundCountedStatuses).
 		Select("COALESCE(SUM(amount), 0)").Scan(&total).Error
 	if err != nil {
@@ -1390,7 +1390,7 @@ func (s *Store) StatsForApp(userID, appID string) (Stats, error) {
 		Where("user_id = ? AND order_status IN ?", userID,
 			[]string{string(payment.TradeStatusFailed), string(payment.TradeStatusClosed)})
 	refundQ := s.db.Model(&RefundModel{}).
-		Where("user_id = ? AND refund_status IN ?", userID, refundCountedStatuses)
+		Where("user_id = ? AND "+refundCountedWhere, userID, refundCountedStatuses)
 	if appID != "" {
 		base = base.Where("app_id = ?", appID)
 		successQ = successQ.Where("app_id = ?", appID)

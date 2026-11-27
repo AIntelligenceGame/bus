@@ -121,6 +121,19 @@ func TestCreateRejectsInvalidFields(t *testing.T) {
 			},
 			want: "订单描述",
 		},
+		{
+			// 支付宝境内交易接口没有币种字段,total_amount 的单位就是「元」。
+			// 传 USD 会被当成人民币扣款 —— 金额差 7 倍还不会有任何报错,
+			// 所以必须在本地就拦下来。
+			name: "非人民币币种",
+			order: &payment.Order{
+				OutTradeNo: "OT20260001",
+				Subject:    "测试",
+				Amount:     100,
+				Currency:   "USD",
+			},
+			want: "币种",
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -12,10 +12,10 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/AIntelligenceGame/bus/payment"
+	"github.com/hashicorp/golang-lru/v2"
 )
 
 // StripeConfig Stripe 收单网关配置。
@@ -34,6 +34,15 @@ type StripeConfig struct {
 	HTTPClient *http.Client `mapstructure:"-"`
 }
 
+// stripeRefCacheSize 「商户订单号 -> PaymentIntent ID」本地映射的容量上限。
+//
+// 这张表必须有上限:它只增不减,一个长期运行、订单量大的进程会把它撑到
+// 内存里放不下(每条几十字节,几百万单就是几百 MB)。
+//
+// 淘汰掉条目不要紧 —— 查不到时会退回 Stripe 的 Search API
+// (按 metadata 里的 out_trade_no 找),结果一样,只是多一次网络往返。
+const stripeRefCacheSize = 10000
+
 // Stripe Stripe 网关实现(PaymentIntent + Webhook 验签)。
 //
 // 仅使用标准库调用 Stripe REST API,支持 PaymentIntent 创建/扣款/查询/退款与 Webhook 验签。
@@ -41,8 +50,18 @@ type Stripe struct {
 	cfg    *StripeConfig
 	client *http.Client
 
-	mu   sync.RWMutex
-	refs map[string]string // 商户订单号 -> PaymentIntent ID
+	// refs 商户订单号 -> PaymentIntent ID 的本地缓存(有容量上限,LRU 淘汰)。
+	//
+	// 用 hashicorp/golang-lru 而不是裸 map:裸 map 只增不减,是内存泄漏;
+	// lru.Cache 自带锁,读写都是 O(1),不需要额外的 mutex。
+	refs *lru.Cache[string, string]
+}
+
+// newStripeRefs 造一个容量受限的订单号映射缓存。
+func newStripeRefs() *lru.Cache[string, string] {
+	// lru.New 只在 size <= 0 时报错,这里传的是正数常量,不会失败。
+	c, _ := lru.New[string, string](stripeRefCacheSize)
+	return c
 }
 
 // NewStripe 创建 Stripe 网关。
@@ -57,7 +76,7 @@ func NewStripe(cfg *StripeConfig) (*Stripe, error) {
 	if client == nil {
 		client = &http.Client{Timeout: 15 * time.Second}
 	}
-	return &Stripe{cfg: cfg, client: client, refs: make(map[string]string)}, nil
+	return &Stripe{cfg: cfg, client: client, refs: newStripeRefs()}, nil
 }
 
 // Name 网关名称。
@@ -238,7 +257,15 @@ func (s *Stripe) Charge(ctx context.Context, req ChargeRequest) (*ChargeResult, 
 	if req.PaymentToken == "" {
 		return nil, fmt.Errorf("stripe: payment token is required")
 	}
-	if id := s.findIntentID(ctx, req.OutTradeNo); id != "" {
+	id, err := s.resolveIntentID(ctx, req.OutTradeNo)
+	if err != nil {
+		// 「查挂了」不等于「查不到」。查询失败时**绝不能**当成「没建过会话」
+		// 去新建一个 intent:客户端拿的是建会话时那个 intent 的 client_secret,
+		// 服务端另建一个去扣,用户就被扣了两次钱。
+		// (建会话和扣款用的是不同的幂等键,Stripe 挡不住第二笔。)
+		return nil, fmt.Errorf("stripe: 查询订单 %s 的 PaymentIntent 失败: %w", req.OutTradeNo, err)
+	}
+	if id != "" {
 		res, err := s.confirmIntent(ctx, id, req)
 		if err == nil {
 			return res, nil
@@ -254,26 +281,26 @@ func (s *Stripe) Charge(ctx context.Context, req ChargeRequest) (*ChargeResult, 
 // errIntentGone 之前的 PaymentIntent 作废了,不能确认了。
 var errIntentGone = errors.New("stripe: payment intent is canceled")
 
-// findIntentID 找出这笔订单之前建出来的 PaymentIntent。
+// resolveIntentID 找出这笔订单之前建出来的 PaymentIntent。
 //
 // 先看本地缓存(同一进程里建的会话立刻就能拿到),再退回 Search API
-// (进程重启、多实例部署时靠它找回来)。
-func (s *Stripe) findIntentID(ctx context.Context, outTradeNo string) string {
+// (进程重启、多实例部署、或者本地缓存条目被淘汰时靠它找回来)。
+//
+// 查不到时返回空串;err 只表示**查询过程**出了问题(网络、鉴权等),
+// 与「Stripe 上确实没有这笔单」是两回事 —— 调用方要区分对待,
+// 别把「查挂了」当成「订单不存在」。
+func (s *Stripe) resolveIntentID(ctx context.Context, outTradeNo string) (string, error) {
 	if outTradeNo == "" {
-		return ""
+		return "", nil
 	}
 	if id := s.lookup(outTradeNo); id != "" {
-		return id
+		return id, nil
 	}
 	// 直接给了 PaymentIntent ID 的情况。
 	if strings.HasPrefix(outTradeNo, "pi_") {
-		return outTradeNo
+		return outTradeNo, nil
 	}
-	id, err := s.searchByTradeNo(ctx, outTradeNo)
-	if err != nil {
-		return ""
-	}
-	return id
+	return s.searchByTradeNo(ctx, outTradeNo)
 }
 
 // confirmIntent 确认已有的 PaymentIntent。
@@ -357,17 +384,9 @@ func chargeResultOf(obj stripeObject, outTradeNo string) *ChargeResult {
 //
 // reference 可以是 PaymentIntent ID,也可以是商户订单号(内部通过 Search API 定位)。
 func (s *Stripe) Query(ctx context.Context, reference string) (*ChargeResult, error) {
-	id := s.lookup(reference)
-	// reference 直接就是 PaymentIntent ID(pi_ 开头)时不用再搜一遍。
-	if id == "" && strings.HasPrefix(reference, "pi_") {
-		id = reference
-	}
-	if id == "" {
-		found, err := s.searchByTradeNo(ctx, reference)
-		if err != nil {
-			return nil, err
-		}
-		id = found
+	id, err := s.resolveIntentID(ctx, reference)
+	if err != nil {
+		return nil, err
 	}
 	if id == "" {
 		return nil, fmt.Errorf("%w: stripe order %s not found", payment.ErrOrderNotFound, reference)
@@ -414,8 +433,25 @@ func (s *Stripe) Refund(ctx context.Context, req RefundRequest) (*RefundResult, 
 	if req.OutTradeNo != "" {
 		form.Set("metadata[out_trade_no]", req.OutTradeNo)
 		form.Set("metadata[reason]", req.Reason)
-	}
-	if id := s.lookup(req.OutTradeNo); id != "" {
+		// 退款**必须**指明退的是哪一笔:官方要求 payment_intent 或 charge
+		// 二选一必填(https://docs.stripe.com/api/refunds/create),
+		// 两个都不给会报 "One of the following params should be provided
+		// for this request: payment_intent or charge"。
+		// metadata 只是备注,Stripe 不拿它定位订单 —— 光给 metadata 一定退不了。
+		//
+		// 所以这里不能只查本地缓存:进程重启、多实例部署、或者缓存条目
+		// 被 LRU 淘汰之后,缓存里就没这笔单了,只查缓存会让退款**直接失败**。
+		// 查不到就退回 Search API 再找一次(见 resolveIntentID)。
+		id, err := s.resolveIntentID(ctx, req.OutTradeNo)
+		if err != nil {
+			// 查询失败 ≠ 订单不存在:把网络/鉴权错误如实报出去,
+			// 别让商户以为「这单没付过」而去重复下单。
+			return nil, fmt.Errorf("stripe: 查询订单 %s 的 PaymentIntent 失败: %w", req.OutTradeNo, err)
+		}
+		if id == "" {
+			return nil, fmt.Errorf("%w: stripe 找不到订单 %s 对应的 PaymentIntent,无法退款",
+				payment.ErrOrderNotFound, req.OutTradeNo)
+		}
 		form.Set("payment_intent", id)
 	}
 	if req.Amount > 0 {
@@ -536,19 +572,26 @@ func (s *Stripe) verifySignature(header string, body []byte) error {
 
 // remember 记录订单号与 PaymentIntent 的映射。
 func (s *Stripe) remember(outTradeNo, id string) {
-	if outTradeNo == "" || id == "" {
+	if outTradeNo == "" || id == "" || s.refs == nil {
 		return
 	}
-	s.mu.Lock()
-	s.refs[outTradeNo] = id
-	s.mu.Unlock()
+	s.refs.Add(outTradeNo, id)
 }
 
 // lookup 查询本地缓存的映射。
+//
+// 查不到**不代表**没有这单 —— 只是本地缓存里没有(进程重启过、
+// 多实例部署、或者条目被 LRU 淘汰了)。调用方要拿它当「事实」用的话,
+// 必须走 findIntentID(会退回 Stripe 的 Search API 再找一次)。
 func (s *Stripe) lookup(outTradeNo string) string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.refs[outTradeNo]
+	if s.refs == nil {
+		return ""
+	}
+	v, ok := s.refs.Get(outTradeNo)
+	if !ok {
+		return ""
+	}
+	return v
 }
 
 // currencyCode 归一化币种(Stripe 使用小写)。

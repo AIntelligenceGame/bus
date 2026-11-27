@@ -569,6 +569,26 @@ func (p *Platform) handleSaveChannel(w http.ResponseWriter, r *http.Request) {
 		merged.Wechat.CertDir = p.certDirFor(user.UserID, appID)
 	}
 
+	// 落库**之前**先构建一次:能构建的配置才允许「启用」状态入库。
+	//
+	// 以前是「先存再构建」:构建失败时接口回 ok:false,前端提示「保存失败」,
+	// 可库里那一行已经写好了、enabled 还是 true —— 前后端说的不是一回事。
+	// 更糟的是控制台会显示「已启用」,但真正下单时 buildProviders 构建失败,
+	// 渠道静默不可用,商户查单查半天查不出原因。
+	//
+	// 现在改成:构建不过就**不落库**,并把原因原样带回前端。
+	// 商户可以先把配置以「停用」状态存下来(enabled=false 时不做构建校验),
+	// 修好后再启用。
+	if merged.Enabled {
+		if _, err := buildProvider(merged, p.certDirFor(user.UserID, appID)); err != nil {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"ok":    false,
+				"error": "配置未通过校验,未保存: " + err.Error() + "(可先以「停用」状态保存配置,修正后再启用)",
+			})
+			return
+		}
+	}
+
 	if appID != "" {
 		if err := p.store.SaveAppChannel(user.UserID, appID, merged); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -587,16 +607,6 @@ func (p *Platform) handleSaveChannel(w http.ResponseWriter, r *http.Request) {
 	}
 	p.audit(r, user.UserID, auditChannelSave, channel, auditDetail, "")
 
-	// 保存后立即尝试构建,尽早暴露配置错误
-	if merged.Enabled {
-		if _, err := buildProvider(merged, p.certDirFor(user.UserID, appID)); err != nil {
-			writeJSON(w, http.StatusOK, map[string]any{
-				"ok":    false,
-				"error": err.Error(),
-			})
-			return
-		}
-	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 

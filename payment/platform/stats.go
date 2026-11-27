@@ -268,7 +268,7 @@ func (s *Store) refundGroups(userID, column, appID string) (map[string]StatGroup
 		RefundCount  int64
 		RefundAmount int64
 	}
-	q := s.db.Model(&RefundModel{}).Where("user_id = ? AND refund_status IN ?",
+	q := s.db.Model(&RefundModel{}).Where("user_id = ? AND "+refundCountedWhere,
 		userID, refundCountedStatuses)
 	if appID != "" {
 		q = q.Where("app_id = ?", appID)
@@ -303,7 +303,7 @@ type refundStatRow struct {
 // 第二个返回值 truncated:行数超上限时为 true(口径同 statGroupsByDay)。
 func (s *Store) refundRowsForStats(userID, appID string) ([]refundStatRow, bool, error) {
 	q := s.db.Model(&RefundModel{}).
-		Where("user_id = ? AND refund_status IN ?", userID, refundCountedStatuses)
+		Where("user_id = ? AND "+refundCountedWhere, userID, refundCountedStatuses)
 	if appID != "" {
 		q = q.Where("app_id = ?", appID)
 	}
